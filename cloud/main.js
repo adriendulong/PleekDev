@@ -1,6 +1,7 @@
 // Require and initialize the Twilio module with your credentials
 var client = require('twilio')('AC565e7be131da6f810b8d746874fb3774', '8d432341211ffaca933c13dd2e000eea');
 var Image = require("parse-image");
+_ = require('underscore.js')
 
 /* ######## @@@@@@@@ ######## @@@@@@@@ ######## @@@@@@@@ 
    ######## @@@@@@@@ ######## @@@@@@@@ ######## @@@@@@@@ 
