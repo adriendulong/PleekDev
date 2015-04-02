@@ -668,7 +668,14 @@ Parse.Cloud.job("removeFriends", function(request, status) {
 });
 
 
-// Migrate User friends using User objects
+
+/////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////// START ////////////////////////////////////////
+////////////////// MIGRATE USER FRIENDS TO PFRELATION //////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+
+// Migrate all the friends of one user
 Parse.Cloud.define("userFriendsMigrationUsersObjects", function(request, response) {
   // Set up to modify user data
 
@@ -693,9 +700,6 @@ Parse.Cloud.define("userFriendsMigrationUsersObjects", function(request, respons
   	else{
 		queryFriend.containedIn("objectId", user.get("usersFriend"));
   	}
-
-  	
-
   	//Find all the friends User object
   	return queryFriend.find();
   }).then(function(friends){
@@ -725,24 +729,23 @@ Parse.Cloud.define("userFriendsMigrationUsersObjects", function(request, respons
 });
 
 
-// Migrate User friends for all the users
+// Migrate all the friends of all the user of the base
 Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
-  // Set up to modify user data
 
   var startDate = new Date()
   Parse.Cloud.useMasterKey();
   var counter = 0;
 
-  //Get the user we want add Friends
+  //Go through all the users
   var query = new Parse.Query(Parse.User);
   query.each(function(user) {
 
   	if (counter % 100 === 0) {
-        // Set the  job's progress status
         status.message(counter + " users processed.");
     }
     counter += 1;
 
+    //Call the function the migrate all the friends of this user
   	return Parse.Cloud.httpRequest({
 	  method: 'POST',
 	  url: 'https://api.parse.com/1/functions/userFriendsMigrationUsersObjects',
@@ -756,6 +759,7 @@ Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
 	  }});
 
   }).then(function(){
+
   	var endDate = new Date();
   	var lengthJob = endDate - startDate;
   	status.success("Migration completed successfully in "+lengthJob+".");
@@ -797,66 +801,8 @@ Parse.Cloud.job("printMyFriendsName", function(request, status) {
 });
 
 
-
-//Call Add Friends Background Job
-function addFriendsForUser(user){
-
-  Parse.Cloud.useMasterKey();
-  var promise = Parse.Promise()
-  
-  var mainUser;
-  var friendsObjects = [];
-
-  var queryFriend = new Parse.Query(Parse.User);
-  queryFriend.containedIn("objectId", user.get("usersFriend"));
-	
-  queryFriend.find().then(function(friends){
-
-
-  	var relation = mainUser.relation("friendsUsers");
-	relation.add(friends);
-
-  	// Add all the relation between the user and the friends
-  	return mainUser.save()
-
-  }).then(function(){
-  	
-  	promise.resolve()
-
-  }, function(error) {
-    // Set the job's error status
-    promise.reject(error)
-  });
-
-  return promise;
-}
-
-
-function callBackgroundAddFriends(userId){
-
-	var promise = new Parse.Promise();
-
-	Parse.Cloud.httpRequest({
-	  method: 'POST',
-	  url: 'https://api.parse.com/1/functions/userFriendsMigrationUsersObjects',
-	  headers: {
-	    'Content-Type': 'application/json',
-	    'X-Parse-Application-Id' : 'BA7FMG5LmMRx0RIPw3XdrOkR7FTnnSe4SIMRrnRG',
-	    'X-Parse-Master-Key' : 'AKQhW3cNH3y4nwaKovCNhAcUeW6Z4rasX3OdiIkR'
-	  },
-	  body: {
-	    'userId' : userId
-	  },
-	  success: function(httpResponse) {
-	    console.log(httpResponse.text);
-	    promise.resolve()
-	  },
-	  error: function(httpResponse) {
-	    console.error('Request failed with response code ' + httpResponse.status);
-	    promise.reject()
-	  }
-	});
-
-
-}
+/////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////// END ////////////////////////////////////////
+////////////////// MIGRATE USER FRIENDS TO PFRELATION //////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
