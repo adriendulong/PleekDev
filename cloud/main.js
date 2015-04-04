@@ -127,7 +127,6 @@ Parse.Cloud.job("removeFriends", function(request, status) {
 
 // Migrate all the friends of one user
 Parse.Cloud.define("userFriendsMigrationUsersObjects", function(request, response) {
-  // Set up to modify user data
 
   var startDate = new Date()
   Parse.Cloud.useMasterKey();
@@ -145,7 +144,7 @@ Parse.Cloud.define("userFriendsMigrationUsersObjects", function(request, respons
 
   	//console.log(user.get("usersFriend"))
   	if (!user.get("usersFriend")){
-  		return Parse.Promise.as()
+  		return Parse.Promise.as();
   	}
   	else{
 		queryFriend.containedIn("objectId", user.get("usersFriend"));
@@ -154,21 +153,39 @@ Parse.Cloud.define("userFriendsMigrationUsersObjects", function(request, respons
   	return queryFriend.find();
   }).then(function(friends){
 
-  	if (friends){
-		var relation = mainUser.relation("friends");
-		relation.add(friends);
+  	var Friend = Parse.Object.extend("Friend");
+  	var promises = [];
+    
+  	_.each(friends, function(friend){
+  		var newFriend = new Friend();
+		newFriend.set("friend", friend);
+		newFriend.set("friendId", friend.id);
+		newFriend.set("user", mainUser);
+		newFriend.set("score", 0);
+		friendsObjects.push(newFriend);
 
-	  	// Add all the relation between the user and the friends
-	  	return mainUser.save()
-  	}
-  	else{
-  		return Parse.Promise.as()
-  	}
+		promises.push(newFriend.save());
+  	})
+
+  	// Create all friends object
+    return Parse.Promise.when(promises);
+
   	
+  }).then(function(){
+
+  	_.each(friendsObjects, function(friend){
+
+  		var relation = mainUser.relation("friends");
+		relation.add(friend);
+
+  	})
+
+  	// Add all the PFRelation between the user and the friends
+  	return mainUser.save()
 
   }).then(function(){
-  	var endDate = new Date()
-  	var lengthJob = endDate - startDate
+  	var endDate = new Date();
+  	var lengthJob = endDate - startDate;
   	response.success("Migration completed successfully in "+lengthJob+".");
 
   }, function(error) {
@@ -177,6 +194,76 @@ Parse.Cloud.define("userFriendsMigrationUsersObjects", function(request, respons
   });
 
 });
+
+
+//Migrate friends of a user
+function migrateFriendsOfUser(user){
+
+  var promise = new Parse.Promise();
+  var startDate = new Date()
+  //Parse.Cloud.useMasterKey();
+  var counter = 0;
+  
+  
+
+  var queryFriend = new Parse.Query(Parse.User);
+  if (!user.get("usersFriend")){
+  		promise.resolve()
+  }
+  else{
+		queryFriend.containedIn("objectId", user.get("usersFriend"));
+  }
+
+  queryFriend.find(function(friendUsers){
+
+  	var Friend = Parse.Object.extend("Friend");
+    var friendsObjects = [];
+
+  	_.each(friendUsers, function(friendUser){
+  		console.log("Friend : "+friendUser.id)
+  		var newFriend = new Friend();
+		newFriend.set("friend", friendUser);
+		newFriend.set("friendId", friendUser.id);
+		newFriend.set("user", user);
+		newFriend.set("score", 0);
+		friendsObjects.push(newFriend);
+		
+  	})
+
+  	// Create all friends object
+    return friendsObjects[0].save();
+
+  	
+  }).then(function(friendToAdd){
+
+
+  	/*_.each(friendsObjectsToAdd, function(friendToAdd){
+  		console.log("Friend To Add Id : "+friendToAdd.id)
+  	});*/
+
+  	var relation = user.relation("friends");
+	relation.add(friendToAdd);
+
+  	// Add all the PFRelation between the user and the friends
+  	return user.save();
+
+  }).then(function(){
+  	var endDate = new Date();
+  	var lengthJob = endDate - startDate;
+  	console.log("Migration completed successfully in "+lengthJob+".")
+  	//response.success("Migration completed successfully in "+lengthJob+".");
+  	promise.resolve()
+
+  }, function(error) {
+    // Set the job's error status
+    //response.error("Uh oh, something went wrong." + error);
+    promise.reject(error)
+  });
+
+  return promise;
+
+}
+
 
 
 // Migrate all the friends of all the user of the base
@@ -195,7 +282,9 @@ Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
     }
     counter += 1;
 
+    //return migrateFriendsOfUser(user);
     //Call the function the migrate all the friends of this user
+    
   	return Parse.Cloud.httpRequest({
 	  method: 'POST',
 	  url: 'https://api.parse.com/1/functions/userFriendsMigrationUsersObjects',
@@ -250,6 +339,76 @@ Parse.Cloud.job("printMyFriendsName", function(request, status) {
 
 });
 
+
+//Set FriendshipScores
+Parse.Cloud.job("setFriendshipScores", function(request, status){
+
+	Parse.Cloud.useMasterKey();
+	var startDate = new Date()
+
+	var friendshipScore = Parse.Object.extend("friendshipScore");
+	var queryfriendshipScore = new Parse.Query(friendshipScore);
+	
+	queryfriendshipScore.include("user")
+
+	//Iterate over all the friendhsipScores
+	queryfriendshipScore.each(function(friendshipScore){
+
+		var user = friendshipScore.get("user")
+		var friendId = friendshipScore.get("friendId")
+
+		var queryFriend = new Parse.Query(Parse.Object.extend("Friend"))
+		queryFriend.equalTo("user", user)
+		queryFriend.equalTo("friendId", friendId)
+
+		//Get the Friend Object
+		return setOldScore(friendshipScore);
+
+	}).then(function(){
+
+		var endDate = new Date();
+  		var lengthJob = endDate - startDate;
+		status.success("Has Set all the friendships score in : "+ lengthJob)
+
+	}, function(error){
+		status.error("Error : "+ error);
+	});
+
+});
+
+
+
+//Set the score of the friendhsip table in the Friend Table
+function setOldScore(friendshipScore){
+
+	var promise = new Parse.Promise();
+
+	var user = friendshipScore.get("user")
+	var friendId = friendshipScore.get("friendId")
+
+	var queryFriend = new Parse.Query(Parse.Object.extend("Friend"))
+	queryFriend.equalTo("user", user)
+	queryFriend.equalTo("friendId", friendId)
+
+	queryFriend.first(function(friend){
+
+		friend.set("score", friendshipScore.get("score"))
+
+		return friend.save();
+
+	}).then(function(){
+
+		promise.resolve()
+
+	}, function(error){
+
+		promise.reject()
+
+	});
+
+	return promise;
+
+}
 
 /////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////// END ////////////////////////////////////////
