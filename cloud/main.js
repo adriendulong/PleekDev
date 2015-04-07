@@ -1322,7 +1322,7 @@ Parse.Cloud.define("sendPushNewComment", function(request, response) {
   //si c'est un piki public alors on ne push pas pour une nouvelle reaction
   if (request.params.isPublic == true) {
   
-  	console.log("il y a : " + request.params.recipients.length + " recipients !");
+  
   
   	//on va recup le Pleek!
   	
@@ -1347,7 +1347,7 @@ Parse.Cloud.define("sendPushNewComment", function(request, response) {
 					
 					
 					//si < X recipients. On va pusher certains seuils
-					if (pikiToSave.get("recipients").length < nbRecipientsMaxToPublicPleekPush) {
+					/*if (pikiToSave.get("recipients").length < nbRecipientsMaxToPublicPleekPush) {
 					
 						
 						//on ne remonte la piki que si il y a 10, 100 500, 1500, 3000, 5000 reponses
@@ -1430,7 +1430,7 @@ Parse.Cloud.define("sendPushNewComment", function(request, response) {
 						
 						
 					//si + X recipients. On va pusher certains seuils au dessus
-					} else {
+					} else {*/
 					
 					
 					//on ne remonte la piki que si il y a 10, 100 500, 1500, 3000, 5000 reponses
@@ -1474,7 +1474,7 @@ Parse.Cloud.define("sendPushNewComment", function(request, response) {
 							  var query = new Parse.Query(Parse.Installation);
 							  query.equalTo('channels', channelName); // Set our channel
 							  query.notEqualTo("notificationsEnabled", false);
-							  					  
+							  query.equalTo("deviceType", "ios");				  
 							  
 							  // Send the push notification to results of the query
 							  Parse.Push.send({
@@ -1509,7 +1509,7 @@ Parse.Cloud.define("sendPushNewComment", function(request, response) {
 					
 					
 						
-					}
+					//}
 						
 
 			
@@ -2064,7 +2064,7 @@ Parse.Cloud.afterSave("Piki", function(request, response) {
   
   	//on verifie si on est sur la nouvelle version (recipients vide)
  	//si les recipients n'existent pas alors je les ajoute sur le serveur
- 	if (!piki.get("recipients") && !request.object.existed() ) {
+ 	if (!piki.get("recipients") && !request.object.existed() && piki.get("isPublic")== true) {
  		
  		console.log("ON A PAS DE RECIPIENTS");
  		var userFriendsList = [];
@@ -2074,44 +2074,46 @@ Parse.Cloud.afterSave("Piki", function(request, response) {
  		userFriendsList = request.user.get("usersFriend");
  		userWhoMutedHimList = request.user.get("usersWhoMutedMe");
  		
- 		console.log("user a : " +  userFriendsList.length + 'amis');
- 		console.log("user a : " +  userWhoMutedHimList.length + 'muted amis');
+ 		if (userFriendsList.length < 1000) {
  		
- 		
- 		//on enleve les users qui m'ont muté a ma liste de friends
- 		for (var i = 0 ; i < userWhoMutedHimList.length ; i++) {
-	 		
-	 		var index = userFriendsList.indexOf(userWhoMutedHimList[i]);
-	 		if (index > -1) {
-			    userFriendsList.splice(index, 1);
-			    console.log("ON A TROUVE 1 USER QUI MA MUTE");
-			}
+	 		console.log("user a : " +  userFriendsList.length + 'amis');
+	 		console.log("user a : " +  userWhoMutedHimList.length + 'muted amis');
 	 		
 	 		
- 		}
- 		
- 		console.log("ON VA AJOUTER : " +  userFriendsList.length + " recipients au piki public");
- 		
- 		//on ajoute le tableau dans les recipients du pleek
- 		piki.set("recipients",userFriendsList);
- 		piki.save({
-				  success: function(pikiSaved) {			  
-				  
-				  
-					  console.log("piki saved with the recipients liste");
-				 
-				    
-				  },
-				  error: function() {
-				  
-				    // Execute any logic that should take place if the save fails.
-				    // error is a Parse.Error with an error code and message.
-				    console.log("piki NOT saved with the recipients liste");
-				    
-				  }
-				});
- 		
- 	
+	 		//on enleve les users qui m'ont muté a ma liste de friends
+	 		for (var i = 0 ; i < userWhoMutedHimList.length ; i++) {
+		 		
+		 		var index = userFriendsList.indexOf(userWhoMutedHimList[i]);
+		 		if (index > -1) {
+				    userFriendsList.splice(index, 1);
+				    console.log("ON A TROUVE 1 USER QUI MA MUTE");
+				}
+		 		
+		 		
+	 		}
+	 		
+	 		console.log("ON VA AJOUTER : " +  userFriendsList.length + " recipients au piki public");
+	 		
+	 		//on ajoute le tableau dans les recipients du pleek
+	 		piki.set("recipients",userFriendsList);
+	 		piki.save({
+					  success: function(pikiSaved) {			  
+					  
+					  
+						  console.log("piki saved with the recipients liste");
+					 
+					    
+					  },
+					  error: function() {
+					  
+					    // Execute any logic that should take place if the save fails.
+					    // error is a Parse.Error with an error code and message.
+					    console.log("piki NOT saved with the recipients liste");
+					    
+					  }
+					});
+	 		
+	 	}
  	
  	}
   
