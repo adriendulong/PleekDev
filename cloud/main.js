@@ -1,6 +1,7 @@
 // Require and initialize the Twilio module with your credentials
 var client = require('twilio')('AC565e7be131da6f810b8d746874fb3774', '8d432341211ffaca933c13dd2e000eea');
 var Image = require("parse-image");
+var friend = require('cloud/friend.js');
 _ = require('underscore.js')
 
 /* ######## @@@@@@@@ ######## @@@@@@@@ ######## @@@@@@@@ 
@@ -178,7 +179,9 @@ Parse.Cloud.define("userFriendsMigrationUsersObjects", function(request, respons
   	
   }).then(function(){
 
-  	mainUser.set("migrationFriendsDone", true)
+  	mainUser.set("nbFriends", friendsObjects.length);
+  	mainUser.set("lastFriendsModification", new Date());
+  	mainUser.set("migrationFriendsDone", true);
 
   	// Add all the PFRelation between the user and the friends
   	return mainUser.save()
@@ -206,7 +209,7 @@ Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
 
   //Go through all the users
   var query = new Parse.Query(Parse.User);
-  query.equalTo("migrationFriendsDone", false)
+  //query.equalTo("migrationFriendsDone", false)
   query.each(function(user) {
 
     //See if it has been more that x minutes
@@ -3118,8 +3121,86 @@ Parse.Cloud.define("reportPiki", function(request, response) {
 /*************************************************************
 **************      fonction Add Friends   *************
 *************************************************************/
+Parse.Cloud.define("addFriendTest", function(request, response){
+	Parse.Cloud.useMasterKey();
+	var user = request.user;
+	var friendId = request.params.friendId;
+	var friendObject;
+
+	friend.isAFriend(user, friendId).then(function(isAFriend){
+
+		//Not yet a friend
+		if (isAFriend == false){
+			var query = new Parse.Query(Parse.User);
+			//Get the user we want to add as a friend
+			return query.get(friendId);
+		}
+		else{
+			return Parse.Promise.error("User is already a friend");
+		}
+
+	}).then(function(friend){
+		friendObject = friend;
+
+		if (friend){
+			var Friend = Parse.Object.extend("Friend");
+			//Create the friend object
+			var newFriend = new Friend();
+			newFriend.set("friend", friend);
+			newFriend.set("friendId", friend.id);
+			newFriend.set("user", user);
+			newFriend.set("score", 0);
+			return newFriend.save();
+
+		}
+		else{
+			return Parse.Promise.error("No user found");
+		}
+
+	}).then(function(){
+
+		//Get the installation of the user
+		var queryInstallations = new Parse.Query(Parse.Installation);			
+		queryInstallations.equalTo("user", user);
+		return queryInstallations.find();
+
+	}).then(function(installations){
+		var promises = [];
+
+		// Add the channel to each installation
+		var channelName = "channel_" + friendId;
+		_.each(installations, function(installation){
+
+			installation.addUnique("channels", channelName);
+
+		});
+		promises.push(Parse.Object.saveAll(installations));
+
+		//Modify user object
+		user.increment("nbFriends");
+		user.set("lastFriendsModification", new Date());
+		promises.push(user.save());
+
+		//Save in parrallel the installations and the user
+		return Parse.Promise.when(promises);
+
+	}).then(function(){
+
+		response.success(friendObject);
+
+	}, function(error){
+
+		response.error(error);
+	})
+
+
+});
+
+
 Parse.Cloud.define("addFriend", function(request, response) {	
 	Parse.Cloud.useMasterKey();	
+
+	response.error("Please update the app");
 		
 	var userObject = request.user;
 		
@@ -3278,8 +3359,65 @@ Parse.Cloud.define("addFriend", function(request, response) {
 /*************************************************************
 **************      fonction Add Friends   *************
 *************************************************************/
-Parse.Cloud.define("removeFriend", function(request, response) {
+Parse.Cloud.define("removeFriendV2", function(request, response){
+	Parse.Cloud.useMasterKey();
+	var user = request.user;
+	var friendId = request.params.friendId;
+	var friendObject;
 
+
+	var queryFriend = new Parse.Query(Parse.Object.extend("Friend"));
+	queryFriend.equalTo("user", user);
+	queryFriend.equalTo("friendId", friendId);
+	queryFriend.first().then(function(friendObject){
+
+		if (friendObject){
+			return friendObject.destroy();
+		}
+		else{
+			Parse.Promise.error("User is not a friend");
+		}
+
+	}).then(function(){
+
+		//Get the installation of the user
+		var queryInstallations = new Parse.Query(Parse.Installation);			
+		queryInstallations.equalTo("user", user);
+		return queryInstallations.find();
+
+	}).then(function(installations){
+
+		var promises = [];
+
+		// Remove the channel from each installation
+		var channelName = "channel_" + friendId;
+		_.each(installations, function(installation){
+
+			installation.remove("channels", channelName);
+
+		});
+		promises.push(Parse.Object.saveAll(installations));
+
+		//Modify user object
+		user.increment("nbFriends", -1);
+		user.set("lastFriendsModification", new Date());
+		promises.push(user.save());
+
+		//Save in parrallel the installations and the user
+		return Parse.Promise.when(promises);
+	}).then(function(){
+
+		response.success("Friend removed");
+
+	}, function(error){
+		response.error(error);
+	})
+
+});
+
+
+Parse.Cloud.define("removeFriend", function(request, response) {
+	response.error("Please update the app");
 
 	Parse.Cloud.useMasterKey();	
 		
