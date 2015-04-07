@@ -2407,7 +2407,7 @@ Parse.Cloud.define("addToFirstUsePiki", function(request, response) {
 *************************************************************/
 Parse.Cloud.define("confirmPhoneNumber", function(request, response) {
 
-	var randomNumber = Math.floor((Math.random() * 8999) + 1000);
+var randomNumber = Math.floor((Math.random() * 8999) + 1000);
 	//randomNumber = 1988;
 	
 	
@@ -2494,6 +2494,7 @@ Parse.Cloud.define("confirmPhoneNumber", function(request, response) {
 
 
 });
+
 
 /*************************************************************
 **************      Check des contacts      *************
