@@ -26,96 +26,67 @@ Supprimer les fonctions sendPushNewPiki, sendPushNewReact
    
 	var numberTab = ['+18444311851','+18444871402','+18444524509','+18444396638','+18669777429','+18444311833','+18444311819','+18444871404','+18444683581','+18443258728','+18443240467','+18669574382','+18444871423','+18442907653','+18444871406','+18444871432','+18445019774','+18664598710','+18444311868','+18444871424','+18444311798','+18662058264','+18445019781','+18445019772','+18444311828','+18444871408','+18445019801','+18444871410','+18667047183','+18444997329','+18442761551','+18667047083','+18444311806','+18445189538','+18445019773','+18445019780','+18444871409','+18445019800','+18662067260','+18444318358','+18445189545','+18445189541','+18445189583','+18445189539','+18445019799','+18444434258','+18445189547','+18666800432','+18445189551','+18444932543','+18444337329','+18445189536','+18444311863','+18445019792','+18445019793','+18445189558','+18445019786','+18668979247','+18445189557','+18445019779','+18444871401','+18445019798','+18445019790','+18444871428','+18444311864','+18445189533','+18445019794','+18669930488','+18445189590','+18443363593','+18662202536','+18669579612','+18445189585','+18445189598','+18445019783','+18445189540','+18445189542','+18445189594','+18669789271','+18662299916','+18445189599','+18445019789','+18445189552','+18445189607','+18445189556','+18444871430','+18444871431','+18445189593','+18445189613','+18445189618','+18446152205','+18668043969','+18447896913','+18445774516','+18774238223','+18448073101','+18445774508','+18444167185','+18448285134','+18446789329','+18442878738','+18774517542','+18773143135','+18448232428','+18777876882','+18777788915','+18777449717','+18445540204','+18778402839','+18777613644','+18669375702','+18774826870','+18662283479','+18448713298','+18448692001','+18442948483','+18445532035','+18662352668','+18445544022','+18443576859','+18776209584','+18442027272','+18442948232','+18778011077','+18448185969','+18775121738','+18772321586','+18669868538','+18445920006','+18446110638','+18442148412','+18444308482','+18442147932','+18779272387','+18443345957','+18776113832','+18442148387','+18775125523','+18776472048','+18772499741','+18777454906','+18448691995','+18448073102','+18448073100','+18448232437','+18778176077','+18448692002','+18448713299','+18669378429','+18442148781','+18777901310','+18445774510','+18442686339','+18444485309','+18442148421','+18446152211','+18446152210','+18668702352','+18554667018','+18775329524','+18446155200','+18445579015','+18442148783','+18554667101','+18446152209','+18669377988','+18444690691','+18669375713','+18448073108','+18776665717','+18666335853','+18446152214','+18669377995','+18779599822','+18443347045','+18445579020','+18442148424','+18444690664','+18448285132','+18448691996','+18777606352','+18448892484','+18448892490','+18669375707','+18444694712','+18448285133','+18772997311','+18449772522','+18448285139','+18442148801','+18665974690','+18446627037','+18449732283','+18442148786','+18444694827','+18667873042','+18445185525','+18662063737','+18445185527','+18445789329'];
 	
-	
-	
 
 
+///////////////////////////////// START ////////////////////////////////////////
+////////////////// SET PRIVATE ACL FOR PHONE NUMBERS //////////////////////////
 
-// Migrate User friends
-Parse.Cloud.job("userFriendsMigration", function(request, status) {
-  // Set up to modify user data
+// Set Migration variable to false to all users
+Parse.Cloud.job("setUserInofsACL", function(request, status) {
 
+  var startDate = new Date()
   Parse.Cloud.useMasterKey();
   var counter = 0;
-  
-  var mainUser;
-  var friendsObjects = [];
 
-  //Get the user we want add Friends
+  //Go through all the users
   var query = new Parse.Query(Parse.User);
-  query.get(request.params.userId).then(function(user){
-  	mainUser = user
-  	var queryFriend = new Parse.Query(Parse.User);
-  	queryFriend.containedIn("objectId", user.get("usersFriend"));
+  query.include("userInfos")
+  query.equalTo("ACLsetDone", false)
+  query.each(function(user) {
 
-  	//Find all the friends User object
-  	return queryFriend.find();
-  }).then(function(friends) {
-  	var Friend = Parse.Object.extend("Friend");
-  	var promises = []
-    
-  	_.each(friends, function(friend){
-  		var newFriend = new Friend();
-		newFriend.set("friend", friend);
-		friendsObjects.push(newFriend);
 
-		promises.push(newFriend.save());
-  	})
 
-  	// Create all friends object
-    return Parse.Promise.when(promises);
+  	var testDate = new Date();
+  	var lengthJob = testDate - startDate;
+  	var nbMinutesLimit = 14;
 
-  }).then(function(){
+  	if (lengthJob > (nbMinutesLimit * 60 * 1000)){
+  		console.log("finish")
+  		return Parse.Promise.as();
+  	}
+  	else{
+  		if (counter % 100 === 0) {
+        	status.message(counter + " users processed.");
+    	}
+    	counter += 1;
 
-  	_.each(friendsObjects, function(friend){
-
-  		var relation = mainUser.relation("friends");
-		relation.add(friend);
-
-  	})
-
-  	// Add all the relation between the user and the friends
-  	return mainUser.save()
+    	//set ACL
+    	if (user.get("userInfos")){
+    		user.get("userInfos").setACL(new Parse.ACL(user));
+    		user.get("userInfos").set("hasBeenSetPrivate", true);
+    		user.set("ACLsetDone", true);
+    		return user.save();
+    	}
+    	else{
+    		return Parse.Promise.as()
+    	}
+  	}
 
   }).then(function(){
 
-  	status.success("Migration completed successfully.");
+  	var endDate = new Date();
+  	var lengthJob = endDate - startDate;
+  	status.success("Set private ACL done in "+lengthJob+" for "+counter+" users");
 
   }, function(error) {
     // Set the job's error status
-    status.error("Uh oh, something went wrong.");
+    status.error("Uh oh, something went wrong. : "+error);
   });
 
 });
 
-
-// Remove all friends
-//Display user friends name
-Parse.Cloud.job("removeFriends", function(request, status) {
-	Parse.Cloud.useMasterKey();
-	var query = new Parse.Query(Parse.User);
-	var mainUser;
-	query.get(request.params.userId).then(function(user){
-		mainUser = user
-		var relation = user.relation("friendsUsers");
-		var queryRelation = relation.query();
-		return queryRelation.find();
-
-	}).then(function(friendsObject){
-
-		var relation = mainUser.relation("friendsUsers");
-		relation.remove(friendsObject)
-		return mainUser.save()
-
-	}).then(function(friendsObject){
-
-		status.success("printed all the name");
-
-	}, function(error){
-		status.error("NO printed all the name");
-	});
-
-});
+////////////////// SET PRIVATE ACL FOR PHONE NUMBERS //////////////////////////
+///////////////////////////////// END ////////////////////////////////////////
 
 
 
@@ -123,6 +94,40 @@ Parse.Cloud.job("removeFriends", function(request, status) {
 ///////////////////////////////// START ////////////////////////////////////////
 ////////////////// MIGRATE USER FRIENDS TO PFRELATION //////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
+
+// Set Migration variable to false to all users
+Parse.Cloud.job("setMigrationFriendsFalse", function(request, status) {
+
+  var startDate = new Date()
+  Parse.Cloud.useMasterKey();
+  var counter = 0;
+
+  //Go through all the users
+  var query = new Parse.Query(Parse.User);
+  query.doesNotExist("migrationFriendsDone");
+  query.each(function(user) {
+
+  	if (counter % 100 === 0) {
+        status.message(counter + " users processed.");
+    }
+    counter += 1;
+
+  	user.set("migrationFriendsDone", false);
+  	user.set("ACLsetDone", false);
+  	return user.save();
+
+  }).then(function(){
+
+  	var endDate = new Date();
+  	var lengthJob = endDate - startDate;
+  	status.success("Set false to all users done in "+lengthJob+".");
+
+  }, function(error) {
+    // Set the job's error status
+    status.error("Uh oh, something went wrong. : "+error);
+  });
+
+});
 
 
 // Migrate all the friends of one user
@@ -173,12 +178,7 @@ Parse.Cloud.define("userFriendsMigrationUsersObjects", function(request, respons
   	
   }).then(function(){
 
-  	_.each(friendsObjects, function(friend){
-
-  		var relation = mainUser.relation("friends");
-		relation.add(friend);
-
-  	})
+  	mainUser.set("migrationFriendsDone", true)
 
   	// Add all the PFRelation between the user and the friends
   	return mainUser.save()
@@ -196,75 +196,6 @@ Parse.Cloud.define("userFriendsMigrationUsersObjects", function(request, respons
 });
 
 
-//Migrate friends of a user
-function migrateFriendsOfUser(user){
-
-  var promise = new Parse.Promise();
-  var startDate = new Date()
-  //Parse.Cloud.useMasterKey();
-  var counter = 0;
-  
-  
-
-  var queryFriend = new Parse.Query(Parse.User);
-  if (!user.get("usersFriend")){
-  		promise.resolve()
-  }
-  else{
-		queryFriend.containedIn("objectId", user.get("usersFriend"));
-  }
-
-  queryFriend.find(function(friendUsers){
-
-  	var Friend = Parse.Object.extend("Friend");
-    var friendsObjects = [];
-
-  	_.each(friendUsers, function(friendUser){
-  		console.log("Friend : "+friendUser.id)
-  		var newFriend = new Friend();
-		newFriend.set("friend", friendUser);
-		newFriend.set("friendId", friendUser.id);
-		newFriend.set("user", user);
-		newFriend.set("score", 0);
-		friendsObjects.push(newFriend);
-		
-  	})
-
-  	// Create all friends object
-    return friendsObjects[0].save();
-
-  	
-  }).then(function(friendToAdd){
-
-
-  	/*_.each(friendsObjectsToAdd, function(friendToAdd){
-  		console.log("Friend To Add Id : "+friendToAdd.id)
-  	});*/
-
-  	var relation = user.relation("friends");
-	relation.add(friendToAdd);
-
-  	// Add all the PFRelation between the user and the friends
-  	return user.save();
-
-  }).then(function(){
-  	var endDate = new Date();
-  	var lengthJob = endDate - startDate;
-  	console.log("Migration completed successfully in "+lengthJob+".")
-  	//response.success("Migration completed successfully in "+lengthJob+".");
-  	promise.resolve()
-
-  }, function(error) {
-    // Set the job's error status
-    //response.error("Uh oh, something went wrong." + error);
-    promise.reject(error)
-  });
-
-  return promise;
-
-}
-
-
 
 // Migrate all the friends of all the user of the base
 Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
@@ -275,67 +206,52 @@ Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
 
   //Go through all the users
   var query = new Parse.Query(Parse.User);
+  query.equalTo("migrationFriendsDone", false)
   query.each(function(user) {
 
-  	if (counter % 100 === 0) {
-        status.message(counter + " users processed.");
-    }
-    counter += 1;
+    //See if it has been more that x minutes
+    var testDate = new Date();
+  	var lengthJob = testDate - startDate;
+  	var nbMinutesLimit = 14;
 
-    //return migrateFriendsOfUser(user);
-    //Call the function the migrate all the friends of this user
+  	if (lengthJob > (nbMinutesLimit * 60 * 1000)){
+  		console.log("finish")
+  		return Parse.Promise.as();
+  	}
+  	else{
+  		if (counter % 100 === 0) {
+        	status.message(counter + " users processed.");
+    	}
+    	counter += 1;
+
+  		console.log("still acting");
+  		//Call the function the migrate all the friends of this user
+  		return Parse.Cloud.httpRequest({
+	  		method: 'POST',
+	  		url: 'https://api.parse.com/1/functions/userFriendsMigrationUsersObjects',
+	  		headers: {
+	    	'Content-Type': 'application/json',
+	    	'X-Parse-Application-Id' : 'BA7FMG5LmMRx0RIPw3XdrOkR7FTnnSe4SIMRrnRG',
+	    	'X-Parse-Master-Key' : 'AKQhW3cNH3y4nwaKovCNhAcUeW6Z4rasX3OdiIkR'
+	  	},
+	  	body: {
+	    	'userId' : user.id
+	  	}});
+  	}
+
+
     
-  	return Parse.Cloud.httpRequest({
-	  method: 'POST',
-	  url: 'https://api.parse.com/1/functions/userFriendsMigrationUsersObjects',
-	  headers: {
-	    'Content-Type': 'application/json',
-	    'X-Parse-Application-Id' : 'BA7FMG5LmMRx0RIPw3XdrOkR7FTnnSe4SIMRrnRG',
-	    'X-Parse-Master-Key' : 'AKQhW3cNH3y4nwaKovCNhAcUeW6Z4rasX3OdiIkR'
-	  },
-	  body: {
-	    'userId' : user.id
-	  }});
 
   }).then(function(){
 
   	var endDate = new Date();
   	var lengthJob = endDate - startDate;
-  	status.success("Migration completed successfully in "+lengthJob+".");
+  	status.success("Migration completed successfully in "+lengthJob+" for "+counter+" users");
 
   }, function(error) {
     // Set the job's error status
     status.error("Uh oh, something went wrong. : "+error);
   });
-
-});
-
-//Display user friends name
-Parse.Cloud.job("printMyFriendsName", function(request, status) {
-
-	var query = new Parse.Query(Parse.User);
-	query.get(request.params.userId).then(function(user){
-
-		var relation = user.relation("friends");
-		var queryRelation = relation.query();
-
-		console.log(relation.toJSON())
-
-		return queryRelation.find();
-
-	}).then(function(friendsObject){
-
-		_.each(friendsObject, function(friendObject){
-
-			console.log("Friend Name : "+friendObject.get("username"));
-
-		})
-		console.log("Number of friends : "+friendsObject.length)
-		status.success("printed all the name");
-
-	}, function(error){
-		status.error("NO printed all the name");
-	});
 
 });
 
