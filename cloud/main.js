@@ -2,6 +2,7 @@
 var client = require('twilio')('AC565e7be131da6f810b8d746874fb3774', '8d432341211ffaca933c13dd2e000eea');
 var Image = require("parse-image");
 var friend = require('cloud/friend.js');
+var utils = require('cloud/utils.js');
 _ = require('underscore.js')
 
 /* ######## @@@@@@@@ ######## @@@@@@@@ ######## @@@@@@@@ 
@@ -105,7 +106,7 @@ Parse.Cloud.job("setMigrationFriendsFalse", function(request, status) {
 
   //Go through all the users
   var query = new Parse.Query(Parse.User);
-  query.doesNotExist("migrationFriendsDone");
+  //query.doesNotExist("migrationFriendsDone");
   query.each(function(user) {
 
   	if (counter % 100 === 0) {
@@ -115,6 +116,8 @@ Parse.Cloud.job("setMigrationFriendsFalse", function(request, status) {
 
   	user.set("migrationFriendsDone", false);
   	user.set("ACLsetDone", false);
+  	user.set("nbFriends", 0);
+  	user.set("nbRecipients", 0);
   	return user.save();
 
   }).then(function(){
@@ -333,6 +336,71 @@ function setOldScore(friendshipScore){
 ///////////////////////////////// END ////////////////////////////////////////
 ////////////////// MIGRATE USER FRIENDS TO PFRELATION //////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
+
+Parse.Cloud.afterSave("Friend", function(request) {
+	Parse.Cloud.useMasterKey();
+
+	//If new friend object
+	if (!request.object.existed()){
+
+
+		var queryFriend = new Parse.Query(Parse.User);
+		queryFriend.containedIn("objectId", [request.object.get("friend").id, request.object.get("user").id])
+		queryFriend.find().then(function(users){
+			var friendObject;
+			var userObject;
+			
+			_.each(users, function(user){
+
+				//Increment nbrecipients friend
+				if (user.id == request.object.get("friend").id){
+					friendObject = user;
+					user.increment("nbRecipients");
+					user.save();
+				}
+				//Push user
+				else{
+					userObject = user;
+				}
+
+			});
+
+			var pushQuery = new Parse.Query(Parse.Installation);
+			pushQuery.equalTo("user",friendObject);
+			pushQuery.notEqualTo("notificationsEnabled", false);
+
+			var message = "@" + userObject.get("username") + " added you on Pleek!! 😎";
+
+			Parse.Push.send({
+				where: pushQuery, // Set our Installation query
+				data: {
+					alert: message,
+					badge : "Increment",
+					sound : "default",
+					type : "newFriend"
+				}
+			});
+
+		});
+
+	}
+
+
+});
+
+
+Parse.Cloud.afterDelete("Friend", function(request) {
+	Parse.Cloud.useMasterKey();
+  
+	var queryFriend = new Parse.Query(Parse.User);
+	queryFriend.get(request.object.get("friend").id).then(function(friend){
+
+		friend.increment("nbRecipients", -1);
+		friend.save();
+
+	})
+
+});
 
 
    
@@ -1486,7 +1554,7 @@ Parse.Cloud.define("sendPushNewComment", function(request, response) {
 								    alert: messagePikiOwner,
 								    badge : "Increment",
 									sound : "Space_Notification1.wav",
-									"content-available" : 1
+									pikiId : request.params.pikiId
 								  }
 								}, {
 								  success: function() {
@@ -1587,8 +1655,7 @@ Parse.Cloud.define("sendPushNewComment", function(request, response) {
 				    badge : "Increment",
 					sound : "Space_Notification1.wav",
 					type : "newReact",
-					pikiId : pikiId,
-					"content-available" : 1
+					pikiId : pikiId
 				  }
 				}, {
 				  success: function() {
@@ -1632,8 +1699,7 @@ Parse.Cloud.define("sendPushNewComment", function(request, response) {
 		    badge : "Increment",
 			sound : "Space_Notification1.wav",
 			type : "newReact",
-			pikiId : pikiId,
-			"content-available" : 1
+			pikiId : pikiId
 		  }
 		}, {
 		  success: function() {
@@ -1679,16 +1745,6 @@ Parse.Cloud.afterSave("React", function(request, response) {
 	        var image = new Image();
 	        return image.setData(response.buffer);
 	      
-	      /*}).then(function(image) {
-	        // Crop the image to the smaller of width or height.
-	        var size = Math.min(image.width(), image.height());
-	        return image.crop({
-	          left: (image.width() - size) / 2,
-	          top: (image.height() - size) / 2,
-	          width: size,
-	          height: size
-	        });*/
-	      
 	      }).then(function(image) {
 	        // Resize the image to 64x64.
 	        return image.scale({
@@ -1729,8 +1785,6 @@ Parse.Cloud.afterSave("React", function(request, response) {
     
     //si c'est une photo qui est ajouté
     } else {
-    
-	 	console.log("\n Coucou  TOI ! \n");
 	 
 	    Parse.Cloud.httpRequest({
 	        url: react.get("photo").url()
@@ -1738,16 +1792,6 @@ Parse.Cloud.afterSave("React", function(request, response) {
 	      }).then(function(response) {
 	        var image = new Image();
 	        return image.setData(response.buffer);
-	      
-	      /*}).then(function(image) {
-	        // Crop the image to the smaller of width or height.
-	        var size = Math.min(image.width(), image.height());
-	        return image.crop({
-	          left: (image.width() - size) / 2,
-	          top: (image.height() - size) / 2,
-	          width: size,
-	          height: size
-	        });*/
 	      
 	      }).then(function(image) {
 	        // Resize the image to 64x64.
@@ -1948,7 +1992,7 @@ Parse.Cloud.afterSave("Piki", function(request, response) {
 	Parse.Cloud.useMasterKey();
 	
  	var piki = request.object;
- 	
+ 	var imageToResize;
  	
  
 	//si il y a déjà un thumbnail 
@@ -1967,8 +2011,8 @@ Parse.Cloud.afterSave("Piki", function(request, response) {
 	
     //si c'est une photo qui est ajouté
     } else if (!piki.get("video") && !request.object.existed()){
-	 
-	    Parse.Cloud.httpRequest({
+
+	      Parse.Cloud.httpRequest({
 	        url: piki.get("photo").url()
 	      
 	      }).then(function(response) {
@@ -1978,88 +2022,30 @@ Parse.Cloud.afterSave("Piki", function(request, response) {
 
 	      
 	      }).then(function(image) {
-	        // Resize the image to 64x64.
-	        return image.scale({
-	          width: 550,
-	          height: 550
-	        });
+	     	imageToResize = image;
+
+	        return utils.cropImage(image, 550, 550, "thumbnail");
+
 	      
-	      }).then(function(image) {
-	        // Make sure it's a JPEG to save disk space and bandwidth.
-	        return image.setFormat("JPEG");
-	      
-	      }).then(function(image) {
-	        // Get the image data in a Buffer.
-	        return image.data();
-	      
-	      }).then(function(buffer) {
-	        // Save the image into a new file.
-	        var base64 = buffer.toString("base64");
-	        var cropped = new Parse.File("thumbnail.jpg", { base64: base64 });
-	        return cropped.save();
-	      
-	      }).then(function(cropped) {
+	      }).then(function(croppedBig) {
 	        // Attach the image file to the original object.
-	        var nowDate = new Date();
-	        piki.set("lastUpdate" , nowDate);
-	        piki.set("smallPiki", cropped);
-	      
-	      }).then(function(result) {
-	        miniThumbnailGen();
+	        piki.set("smallPiki", croppedBig);
 	        
+
+	        return utils.cropImage(imageToResize, 375, 375, "thumbnail");
+
+	      }).then(function(croppedSmall){
+
+	      	var nowDate = new Date();
+	        piki.set("lastUpdate" , nowDate);
+	      	piki.set("extraSmallPiki", croppedSmall);
+	      	return piki.save();
+
+	      }).then(function(result) {
 	        console.log("*** Piki thumbnail created ***")
 	      }, function(error) {
 	        console.log("*** ERROR *** : " + error);
 	      });
-	   
-	   
-		  	
-	function miniThumbnailGen () {   
-	     Parse.Cloud.httpRequest({
-	        url: piki.get("photo").url()
-	      
-	      }).then(function(response) {
-	        var image = new Image();
-	        return image.setData(response.buffer);
-	      
-
-	      
-	      }).then(function(image) {
-	        // Resize the image to 64x64.
-	        return image.scale({
-	          width: 375,
-	          height: 375
-	        });
-	      
-	      }).then(function(image) {
-	        // Make sure it's a JPEG to save disk space and bandwidth.
-	        return image.setFormat("JPEG");
-	      
-	      }).then(function(image) {
-	        // Get the image data in a Buffer.
-	        return image.data();
-	      
-	      }).then(function(buffer) {
-	        // Save the image into a new file.
-	        var base64 = buffer.toString("base64");
-	        var cropped = new Parse.File("thumbnail.jpg", { base64: base64 });
-	        return cropped.save();
-	      
-	      }).then(function(cropped) {
-	        // Attach the image file to the original object.
-	        piki.set("extraSmallPiki", cropped);
-	      
-	      }).then(function(result) {
-	        console.log("*** Piki mini thumbnail created ***")
-	        var nowDate = new Date();
-	        piki.set("lastUpdate", nowDate);
-	        piki.save();
-	        
-	      }, function(error) {
-	        console.log("*** ERROR ***  : " + error);
-	      });
-	   
-	   }
 	   
    
   } 
@@ -2072,51 +2058,52 @@ Parse.Cloud.afterSave("Piki", function(request, response) {
  		console.log("ON A PAS DE RECIPIENTS");
  		var userFriendsList = [];
  		var userWhoMutedHimList = [];
+
+ 		if (request.user.get("usersFriend") && request.user.get("usersWhoMutedMe")){
+ 			//on va recup l'objet user
+ 			userFriendsList = request.user.get("usersFriend");
+ 			userWhoMutedHimList = request.user.get("usersWhoMutedMe");
  		
- 		//on va recup l'objet user
- 		userFriendsList = request.user.get("usersFriend");
- 		userWhoMutedHimList = request.user.get("usersWhoMutedMe");
- 		
- 		if (userFriendsList.length < 1000) {
- 		
-	 		console.log("user a : " +  userFriendsList.length + 'amis');
-	 		console.log("user a : " +  userWhoMutedHimList.length + 'muted amis');
+ 			if (userFriendsList.length < 1000) {
 	 		
 	 		
-	 		//on enleve les users qui m'ont muté a ma liste de friends
-	 		for (var i = 0 ; i < userWhoMutedHimList.length ; i++) {
+	 			//on enleve les users qui m'ont muté a ma liste de friends
+	 			for (var i = 0 ; i < userWhoMutedHimList.length ; i++) {
 		 		
-		 		var index = userFriendsList.indexOf(userWhoMutedHimList[i]);
-		 		if (index > -1) {
-				    userFriendsList.splice(index, 1);
-				    console.log("ON A TROUVE 1 USER QUI MA MUTE");
-				}
+		 			var index = userFriendsList.indexOf(userWhoMutedHimList[i]);
+		 			if (index > -1) {
+				    	userFriendsList.splice(index, 1);
+				    	console.log("ON A TROUVE 1 USER QUI MA MUTE");
+					}
 		 		
 		 		
-	 		}
+	 			}
 	 		
-	 		console.log("ON VA AJOUTER : " +  userFriendsList.length + " recipients au piki public");
+	 			console.log("ON VA AJOUTER : " +  userFriendsList.length + " recipients au piki public");
 	 		
-	 		//on ajoute le tableau dans les recipients du pleek
-	 		piki.set("recipients",userFriendsList);
-	 		piki.save({
-					  success: function(pikiSaved) {			  
+	 			//on ajoute le tableau dans les recipients du pleek
+	 			piki.set("recipients",userFriendsList);
+	 			piki.save({
+					 	 success: function(pikiSaved) {			  
 					  
 					  
-						  console.log("piki saved with the recipients liste");
+						  	console.log("piki saved with the recipients liste");
 					 
 					    
-					  },
-					  error: function() {
+					  	},
+					  	error: function() {
 					  
 					    // Execute any logic that should take place if the save fails.
 					    // error is a Parse.Error with an error code and message.
-					    console.log("piki NOT saved with the recipients liste");
+					    	console.log("piki NOT saved with the recipients liste");
 					    
-					  }
-					});
+					 	 }
+						});
 	 		
-	 	}
+	 		}
+ 		}
+ 		
+ 		
  	
  	}
   
@@ -2125,118 +2112,12 @@ Parse.Cloud.afterSave("Piki", function(request, response) {
  	//on check si privé
  	if (piki.get("isPublic")== false && !request.object.existed()) {
 	 	
-	 	console.log("c'est un Pleek! privé on va mettre à jour les score des friendship");
 	 	//si privé on recupere les recipients
 	 	var recipients = piki.get("recipients");
-	 	var recipientsFriendshipToCreate = recipients;
-	 	
-	 	var friendshipScoreToSave = [];
-	 	
-	 	//on check quels recipients on déja un score avec le user
-		var friendshipScore = Parse.Object.extend("friendshipScore");
-		var queryfriendshipScore = new Parse.Query(friendshipScore);
-		
-		queryfriendshipScore.equalTo("user", request.user);
-		queryfriendshipScore.containedIn("friendId", recipients);
-		
-		queryfriendshipScore.find({
-			success: function(friendshipFind) {
-			
-				//si il y en a un error
-				if (friendshipFind) {
-					
-					var friendshipFindId = [];
-					
-					for ( var i = 0; i < friendshipFind.length ; i++) {
-						
-						//ceux qui ont un score -> On incremente
-						friendshipFind[i].increment("score");
-						friendshipScoreToSave.push(friendshipFind[i]);
-						
-						friendshipFindId.push(friendshipFind[i].get("friendId"));
-												
-						//on enleve du tableau de ceux à créer
-						/*var index = recipientsFriendshipToCreate.indexOf(friendshipFind[i].get("friendId"));
-						if (index > -1) {
-							console.log("on en avait un qui existait deja");
-						    //recipientsFriendshipToCreate.splice(index, 1);
-						    
-						}*/
-						
-						
-					}
-					
-				}
-				
-				
-				//pour ceux qui ont pas de score (qui sont donc encore dans recipientsFriendshipToCreate) on crée avec score de 1
-				for ( var j = 0; j < recipientsFriendshipToCreate.length ; j++) {
-				
-					var ilExisteDeja = false;
-					
-					//on verifie qu'il n'existait pas deja
-					for (var k = 0 ; k < friendshipFindId.length ; k++){
-					
-						if (friendshipFindId[k] == recipientsFriendshipToCreate[j]){
-						  ilExisteDeja = true;
-						}
-					
-					}
-				
-					//on ne cree rien pour le user lui meme
-					if (recipientsFriendshipToCreate[j] != request.user.id && ilExisteDeja == false) {
-						var newFriendship = new friendshipScore();
-						var friendshipACL = new Parse.ACL();
-				
-						friendshipACL.setReadAccess(request.user,true);
-						friendshipACL.setWriteAccess(request.user,true);
-			
-						newFriendship.setACL(friendshipACL);
-						newFriendship.set("user",request.user);
-						newFriendship.set("friendId",recipientsFriendshipToCreate[j]);
-						newFriendship.set("score",1);
-						
-						friendshipScoreToSave.push(newFriendship);
-					}
-							
-						
-				
-				}
-				
-				console.log(" On a : " + recipientsFriendshipToCreate.length + " a crée");
-				console.log(" On a : " + friendshipScoreToSave.length + " a enregistré au total");
-				
-				//on save tout les objets	
-				Parse.Object.saveAll(friendshipScoreToSave, { 
-				
-					success: function(friendshipSaved) {
 
-						console.log("ON A SAVE LES NEW FRIENDSHIP SCORE !");
-						
-						
-					
-					},
-					error: function(error) {
-						// An error occurred while saving one of the objects.
-						console.log("can't save the friendshipScore :" + error);
-					}
-				
-				});
-				
-				
-				
-				
- 	  
- 		  },
-		  error: function() {
-		  
-		    // Execute any logic that should take place if the save fails.
-		    // error is a Parse.Error with an error code and message.
-		    console.log('Failed to find the existing friendshipScore');
-		    response.error();	
-		    
-		  }
-		});
+	 	friend.incrementBestScoreMultiUsers(request.user, recipients).then(function(){
+	 		console.log("increment scores");
+	 	})
 
 	 	
  	}
@@ -2249,7 +2130,13 @@ Parse.Cloud.define("addToFirstUsePiki", function(request, response) {
 
 //response.success();
 
+	friend.addFriend(request.user, pikiTeamId).then(function(friendObject){
+		response.success("**** PLEEKTEAM ADDED ****");
+	}, function(error){
+		response.error("**** ERROR ADDING PLEEKTEAM ****");
+	})
 
+	/*
 	Parse.Cloud.useMasterKey();
 	
 	
@@ -2402,7 +2289,7 @@ Parse.Cloud.define("addToFirstUsePiki", function(request, response) {
 			
 			
 		}
-	});
+	});*/
 
 
 });
@@ -2504,6 +2391,7 @@ var randomNumber = Math.floor((Math.random() * 8999) + 1000);
 /*************************************************************
 **************      Check des contacts      *************
 *************************************************************/
+
 Parse.Cloud.define("checkContactOnPiki", function(request, response) {
 
  	Parse.Cloud.useMasterKey();
@@ -2668,8 +2556,7 @@ Parse.Cloud.define("savePiki", function(request, response) {
 		    alert: message,
 		    type : "newPiki",
 		    sound : "Birdy_Notification2.wav",
-			"pikiId" : pikiId,
-			"content-available" : 1
+			"pikiId" : pikiId
 		  }
 		}, {
 		  success: function() {
@@ -2709,8 +2596,7 @@ Parse.Cloud.define("savePiki", function(request, response) {
 			    badge : "Increment",
 				sound : "Birdy_Notification2.wav",
 				type : "newPiki",
-				"pikiId" : pikiId,
-				"content-available" : 1
+				"pikiId" : pikiId
 			  }
 			}, {
 			  success: function() {
@@ -2812,6 +2698,58 @@ Parse.Cloud.define("addToLastPublicPiki", function(request, response) {
 /*************************************************************
 **************      fonction hide ou remove Piki   *************
 *************************************************************/
+Parse.Cloud.define("hideOrRemovePikiV2", function(request, response) {	
+
+	Parse.Cloud.useMasterKey();	
+	var pikiId = request.params.pikiId
+
+	var queryPiki = new Parse.Query(Parse.Object.extend("Piki"));
+	queryPiki.get(pikiId).then(function(pikiObject){
+
+		if (pikiObject){
+
+			//If user is owner of the pleek, delete it
+			if(pikiObject.get("user").id == request.user.id){
+				return pikiObject.destroy();
+			}
+			//User not owner, if private modify the ACL
+			else{
+				if(!pikiObject.get("isPublic")){
+					//remove from the recipients
+					var recipients = _.without(pikiObject.get("recipients"), request.user.id)
+					pikiObject.set("recipients",recipients);
+
+					//Set the new ACL
+					var newACL = new Parse.ACL()
+					newACL.setWriteAccess(pikiObject.get("user").id, true)
+
+					_.each(recipients,function(recipient){
+						console.log("User to put in ACL : "+recipient);
+						newACL.setReadAccess(recipient, true)
+					})
+					pikiObject.setACL(newACL);
+					return pikiObject.save();
+
+
+				}
+				else{
+					return Parse.Promise.as("Nothing to do, public pleek")
+				}
+			}
+
+		}
+		else{
+			response.error("Pleek not found")
+		}
+
+	}).then(function(){
+		response.success("Done");
+	}, function(error){
+		response.error(error);
+	})
+
+});
+
 Parse.Cloud.define("hideOrRemovePiki", function(request, response) {	
 
 	Parse.Cloud.useMasterKey();	
@@ -3121,75 +3059,17 @@ Parse.Cloud.define("reportPiki", function(request, response) {
 /*************************************************************
 **************      fonction Add Friends   *************
 *************************************************************/
-Parse.Cloud.define("addFriendTest", function(request, response){
+Parse.Cloud.define("addFriendV2", function(request, response){
 	Parse.Cloud.useMasterKey();
 	var user = request.user;
 	var friendId = request.params.friendId;
 	var friendObject;
 
-	friend.isAFriend(user, friendId).then(function(isAFriend){
 
-		//Not yet a friend
-		if (isAFriend == false){
-			var query = new Parse.Query(Parse.User);
-			//Get the user we want to add as a friend
-			return query.get(friendId);
-		}
-		else{
-			return Parse.Promise.error("User is already a friend");
-		}
-
-	}).then(function(friend){
-		friendObject = friend;
-
-		if (friend){
-			var Friend = Parse.Object.extend("Friend");
-			//Create the friend object
-			var newFriend = new Friend();
-			newFriend.set("friend", friend);
-			newFriend.set("friendId", friend.id);
-			newFriend.set("user", user);
-			newFriend.set("score", 0);
-			return newFriend.save();
-
-		}
-		else{
-			return Parse.Promise.error("No user found");
-		}
-
-	}).then(function(){
-
-		//Get the installation of the user
-		var queryInstallations = new Parse.Query(Parse.Installation);			
-		queryInstallations.equalTo("user", user);
-		return queryInstallations.find();
-
-	}).then(function(installations){
-		var promises = [];
-
-		// Add the channel to each installation
-		var channelName = "channel_" + friendId;
-		_.each(installations, function(installation){
-
-			installation.addUnique("channels", channelName);
-
-		});
-		promises.push(Parse.Object.saveAll(installations));
-
-		//Modify user object
-		user.increment("nbFriends");
-		user.set("lastFriendsModification", new Date());
-		promises.push(user.save());
-
-		//Save in parrallel the installations and the user
-		return Parse.Promise.when(promises);
-
-	}).then(function(){
-
+	//Add a friend
+	friend.addFriend(user, friendId).then(function(friendObject){
 		response.success(friendObject);
-
 	}, function(error){
-
 		response.error(error);
 	})
 
@@ -3750,6 +3630,9 @@ Parse.Cloud.define("unMuteFriend", function(request, response) {
 
 
 });
+
+
+
 
 /************
 
