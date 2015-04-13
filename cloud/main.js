@@ -2300,7 +2300,7 @@ Parse.Cloud.define("addToFirstUsePiki", function(request, response) {
 Parse.Cloud.define("confirmPhoneNumber", function(request, response) {
 
 var randomNumber = Math.floor((Math.random() * 8999) + 1000);
-	//randomNumber = 1988;
+	randomNumber = 1988;
 	
 	
 	
@@ -2310,6 +2310,7 @@ var randomNumber = Math.floor((Math.random() * 8999) + 1000);
 	
 
 	var number = numberTab[Math.floor(Math.random()*numberTab.length)];
+	
 
  	Parse.Cloud.useMasterKey();
 
