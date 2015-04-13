@@ -3,6 +3,9 @@ var client = require('twilio')('AC565e7be131da6f810b8d746874fb3774', '8d43234121
 var Image = require("parse-image");
 var friend = require('cloud/friend.js');
 var utils = require('cloud/utils.js');
+var Slack = require('cloud/slack.js');
+var slack = new Slack('https://hooks.slack.com/services/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');
+
 _ = require('underscore.js')
 
 /* ######## @@@@@@@@ ######## @@@@@@@@ ######## @@@@@@@@ 
@@ -22,7 +25,11 @@ Supprimer les fonctions sendPushNewPiki, sendPushNewReact
    var ApplicationId = "BA7FMG5LmMRx0RIPw3XdrOkR7FTnnSe4SIMRrnRG";
    var MasterKey = "AKQhW3cNH3y4nwaKovCNhAcUeW6Z4rasX3OdiIkR";
    
-   
+
+
+  
+
+
    
    
    
@@ -1191,6 +1198,21 @@ Parse.Cloud.afterSave(Parse.User, function(request, response) {
 	}else {
 	}
 	
+	if (!request.object.existed()) {
+	
+			var msg = "@" + request.object.get("username") + " just signup on Pleek!";
+			var channelName = "#newuser";
+			var usernameName = "Pleek users";
+		
+		  return slack.send({text: msg, channel: channelName,  username : usernameName}).then(function(){
+		    // success
+		    console.log("new user sur slack added");
+		  }, function(error){
+		    // error
+		  });
+		  
+	}
+	
 
 	
 	
@@ -1199,21 +1221,6 @@ Parse.Cloud.afterSave(Parse.User, function(request, response) {
 Parse.Cloud.define("testSlack", function(request, response) {
 
 
- var myUrl = '{"text": "This is a line of text in a channel.\nAnd this is another line of text."}';
- var encodedURL= "https://hooks.slack.com/services/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?payload=" + encodeURIComponent(myUrl);
-
-  Parse.Cloud.httpRequest({
-	  method: 'POST',
-	  url: encodedURL,
-	  success: function(httpResponse) {
-	    console.log(httpResponse.text);
-	    response.success("good");
-	  },
-	  error: function(httpResponse) {
-	    console.error('Request failed with response code ' + httpResponse.status);
-	    response.error("not good");
-	  }
-	});
 
 });
 
