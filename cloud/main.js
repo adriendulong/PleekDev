@@ -3641,6 +3641,65 @@ Parse.Cloud.define("unMuteFriend", function(request, response) {
 
 
 
+/////////////////// START ////////////////////////////////
+////////////////// STATS ////////////////////////////////
+////////////////////////////////////////////////////////
+
+Parse.Cloud.job("generateDayStats", function(request, status) {
+	Parse.Cloud.useMasterKey();	
+	var promises = []
+
+	//Date of yesterday
+	var dateYesterday = new Date();
+	dateYesterday.setDate(dateYesterday.getDate() - 2);
+	dateYesterday.setHours(22)
+	dateYesterday.setMinutes(0)
+	dateYesterday.setSeconds(0)
+
+	// Date of today
+	var dateToday = new Date();
+	dateToday.setDate(dateYesterday.getDate() - 1);
+	dateToday.setHours(22)
+	dateToday.setMinutes(0)
+	dateToday.setSeconds(0)
+
+
+	//NB USER TODAY
+	var query = new Parse.Query(Parse.User);
+	query.greaterThan("createdAt", dateYesterday)
+	query.lessThan("createdAt", dateToday)
+	promises.push(query.count())
+
+	//NB REACT TODAY
+	var queryReact = new Parse.Query(Parse.Object.extend("React"));
+	queryReact.greaterThan("createdAt", dateYesterday)
+	queryReact.lessThan("createdAt", dateToday)
+	promises.push(queryReact.count())
+
+	//NB PLEEK TODAY
+	var queryPleek = new Parse.Query(Parse.Object.extend("Piki"));
+	queryPleek.greaterThan("createdAt", dateYesterday)
+	queryPleek.lessThan("createdAt", dateToday)
+	promises.push(queryPleek.count())
+
+	Parse.Promise.when(promises).then(function(nbUser, nbReact, nbPleek){
+
+		var msg = "Stats of yesterday : \n New Users : "+nbUser+" \n Pleek sent : "+nbPleek+" \n React sent : "+nbReact;
+		var channelName = "#newuser";
+		var usernameName = "Pleek users";
+		
+		return slack.send({text: msg, channel: channelName,  username : usernameName});
+
+	}).then(function(){
+		status.success("Stats Generated");
+	}, function(error){
+		status.error("Error :"+error);
+	})
+
+});
+
+
+
 
 /************
 
