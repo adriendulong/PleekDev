@@ -113,7 +113,7 @@ Parse.Cloud.job("setMigrationFriendsFalse", function(request, status) {
 
   //Go through all the users
   var query = new Parse.Query(Parse.User);
-  //query.doesNotExist("migrationFriendsDone");
+  query.doesNotExist("migrationFriendsDone");
   query.each(function(user) {
 
   	if (counter % 100 === 0) {
@@ -219,7 +219,7 @@ Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
 
   //Go through all the users
   var query = new Parse.Query(Parse.User);
-  //query.equalTo("migrationFriendsDone", false)
+  query.equalTo("migrationFriendsDone", false)
   query.each(function(user) {
 
     //See if it has been more that x minutes
@@ -1218,11 +1218,6 @@ Parse.Cloud.afterSave(Parse.User, function(request, response) {
 	
 });
 
-Parse.Cloud.define("testSlack", function(request, response) {
-
-
-
-});
 
 Parse.Cloud.define("sendSMS", function(request, response) {
  	
@@ -1245,153 +1240,90 @@ Parse.Cloud.define("sendSMS", function(request, response) {
 });   
 
 
-//**********************//
-// create thumbnail piki
-//**********************//
-Parse.Cloud.afterSave(Parse.Installation, function(request, response) {
 
+Parse.Cloud.afterSave(Parse.Installation, function(request, response) {
 
 	Parse.Cloud.useMasterKey();
 	
 	var installationSaved = request.object;
 
-	/*if (request.object.existed()) { 
-		// it existed before 
-		console.log("\n\n\n\n\n !!! l'installation existait \n\n\n\n\n");
-		
-	} else */
 	if (!request.object.existed() || !request.object.get("channelClean")) { 
-		// it is new 
 
-	 	if (installationSaved.get("user")) {
-		 	
-		 	//si il existe un user avec deja une installation alors on copie colle les channels
-		 	//si pas d'installations existante avec ce user alors on ajoute tout les channels de ses friends - muted
-		 	
-		 	var queryInstallation = new Parse.Query(Parse.Installation);
-		 	
-		 	queryInstallation.equalTo("user",installationSaved.get("user"))
+		if (installationSaved.get("user")){
+
+			var queryInstallation = new Parse.Query(Parse.Installation);
+		 	queryInstallation.equalTo("user",installationSaved.get("user"));
+		 	queryInstallation.notEqualTo("objectId", request.object.id);
 		 	queryInstallation.include("user");
-		 	
-		 	queryInstallation.find({
-				success: function(installationsMatch) {
-				
-					if (installationsMatch.length > 0) {
-							
-							//on cherche l'installation qui n'est pas la nouvelle et on lui ajoute les channel de l'ancienne installation
-							for (var i= 0; i < installationsMatch.length ; i++ ) {
-								
-								console.log ("installationsMatch[i].id : " + installationsMatch[i].id + " \n installationSaved.id : " + installationSaved.id);
-								
-								
-								
-								if (installationsMatch[i].id != installationSaved.id) {
-								
-									console.log("il existait d'autre installation pour ce meme user installationsMatch.length = " + installationsMatch.length);
-									
-									
-									//si il y a plus d'un resultat : donc déjà un device existant on copie la liste des channels
-									if (installationsMatch.length > 1) {
-										console.log("on ajoute les channels de l'ancienne installation a cette nouvelle installation");
-										installationSaved.set("channels" , installationsMatch[i].get("channels"));
-									}
-									
-								} else if (installationsMatch[i].id ==  installationSaved.id) {
-									
-									console.log("c'est l'installation que l'on vient de créer");
-									
-									//si on en a trouve qu'une seule (celle qu'on vient de save) alors on ajoute les channels selon ses amis
-									if (installationsMatch.length ==  1){
-									
-										console.log("il n'en existait pas d'autre pour ce meme user");
-									
-										//on recup les infos de l'installation qui vient d'être sauve pour avoir son objet user include	
-										var channelsTab = [];
-										var userFriendsTab = [];
-										var userFriendsMutedTab = [];
-										
-										if (installationsMatch[i].get("user").get("usersFriend")) {
-											var userFriendsTab = installationsMatch[i].get("user").get("usersFriend");
-										}
-										if (installationsMatch[i].get("user").get("usersIMuted")) {
-											var userFriendsMutedTab = installationsMatch[i].get("user").get("usersIMuted");
-										}
-										
-										for (var j = 0 ; j < userFriendsTab.length ; j++ ) {
-											
-											console.log("un pote trouvé à ajoute en channel");
-											
-											
-											
-											//si on ne trouve pas l'id du friends dans la table des friends qu'il a muté alors on rajoute le channel
-											if (userFriendsMutedTab.indexOf(userFriendsTab[j]) == -1){
-											
-												console.log("on a ajouté 1 pote");
-												
-												var channelName = "channel_" + userFriendsTab[j];
-												installationSaved.addUnique("channels", channelName);
-												
-												
-											}
-											
-										}
-										
-									}
-									
-								}
-								
-							}
-						
-						//on set a true le cleaning pour android
-						installationSaved.set("channelClean",true);
-						
-						//on save l'installation avec les nouveaux channels
-						installationSaved.save(null, { 
-							
-							success: function(installations) {
-												  
-								console.log("New installation save with the new channel array");
-								
-							},
-							error: function() {
-								// An error occurred while saving one of the objects.
-								console.log("error saving the new installation");
-							}
-						
-						});
+		 	queryInstallation.find().then(function(installationsFound){
 
-						
-					} else {
-					
-						console.log("\n ****** On a trouvé AUCUNE Installation ! ******* \n");
-					
-					}
-				
-				},
-				error: function() {
-				
-					console.log("\n ****** ERREUR DE LA RECHERCHE d'installation ******* \n");
-					
-					
-				}
-			});
-		 	
-		 	
-	 	} else {
-		 	
-		 	console.log("aucun user n'a été associé à cette installation");
-		 	
-	 	}
-	 	
-	 	
- 	}
- 	
+		 		//If he already had installations, we copy paste their channels in the new installation
+		 		if (installationsFound.length > 0){
+		 			installationSaved.set("channels", installationsFound[0].get("channels"));
+		 			installationSaved.set("channelClean",true);
+		 			installationSaved.save();
+		 		}
+		 		//else add a channel for each friends 
+		 		else{
+
+		 			friend.getFriends(installationSaved.get("user"), false).then(function(friendsObjects){
+
+		 				_.each(friendsObjects, function(friendObject){
+
+		 					var channelName = "channel_" + friendObject.get("friendId");
+							installationSaved.addUnique("channels", channelName);
+
+		 				})
+
+		 				installationSaved.set("channelClean",true);
+		 				installationSaved.save();
+		 					
+		 			});
+
+		 		}
+
+		 	})
+
+		}
+
+	}
  	
 });
 
 //**********************//
 // send push new Comment
 //**********************//
+
+Parse.Cloud.define("sendPushNewComment", function(request, response){
+
+	//If public adapt the push sent
+	if(request.params.isPublic == true){
+
+		var Piki = Parse.Object.extend("Piki");
+		var queryPiki = new Parse.Query(Piki);
+		queryPiki.include("user");
+
+		queryPiki.get(request.params.pikiId).then(function(pikiFind){
+
+			if (pikiFind){
+
+				//Send Push new react
+
+			}
+			else{
+
+				return Parse.Promise.error("Pleek not find");
+
+			}
+
+		})
+
+	}
+	else{
+
+	}
+
+});
 
 Parse.Cloud.define("sendPushNewComment", function(request, response) {
  
@@ -2001,303 +1933,90 @@ Parse.Cloud.afterSave("Piki", function(request, response) {
  	var piki = request.object;
  	var imageToResize;
  	
- 
-	//si il y a déjà un thumbnail 
-    if ( request.object.existed() ) {
-    	console.log("pas de nouveau piki  crée");
-    	
-	} else if ( piki.get("video") && !request.object.existed() ) {
-	
-		var nowDate = new Date();
-		piki.set("lastUpdate" , nowDate);
-		piki.set("extraSmallPiki" , piki.get("previewImage"));
-		piki.save();
-		
-		
-	
-	
-    //si c'est une photo qui est ajouté
-    } else if (!piki.get("video") && !request.object.existed()){
 
-	      Parse.Cloud.httpRequest({
-	        url: piki.get("photo").url()
+ 	if(!request.object.existed()){
+
+ 		//VIDEO PLEEK
+ 		if (piki.get("video")){
+ 			var nowDate = new Date();
+			piki.set("lastUpdate" , nowDate);
+			piki.set("extraSmallPiki" , piki.get("previewImage"));
+			piki.save();
+ 		}
+ 		//PHOTO PLEEK
+ 		else{
+ 			Parse.Cloud.httpRequest({
+	        	url: piki.get("photo").url()
 	      
-	      }).then(function(response) {
-	        var image = new Image();
-	        return image.setData(response.buffer);
+	      	}).then(function(response) {
+	        	var image = new Image();
+	        	return image.setData(response.buffer);
 	      
 
 	      
-	      }).then(function(image) {
-	     	imageToResize = image;
+	      	}).then(function(image) {
+	     		imageToResize = image;
 
-	        return utils.cropImage(image, 550, 550, "thumbnail");
+	        	return utils.cropImage(image, 550, 550, "thumbnail");
 
 	      
-	      }).then(function(croppedBig) {
-	        // Attach the image file to the original object.
-	        piki.set("smallPiki", croppedBig);
+	      	}).then(function(croppedBig) {
+	        	// Attach the image file to the original object.
+	        	piki.set("smallPiki", croppedBig);
 	        
 
-	        return utils.cropImage(imageToResize, 375, 375, "thumbnail");
+	        	return utils.cropImage(imageToResize, 375, 375, "thumbnail");
 
-	      }).then(function(croppedSmall){
+	      	}).then(function(croppedSmall){
 
-	      	var nowDate = new Date();
-	        piki.set("lastUpdate" , nowDate);
-	      	piki.set("extraSmallPiki", croppedSmall);
-	      	return piki.save();
+	      		var nowDate = new Date();
+	        	piki.set("lastUpdate" , nowDate);
+	      		piki.set("extraSmallPiki", croppedSmall);
+	      		return piki.save();
 
-	      }).then(function(result) {
-	        console.log("*** Piki thumbnail created ***")
-	      }, function(error) {
-	        console.log("*** ERROR *** : " + error);
-	      });
-	   
-   
-  } 
-  
-  
-  	//on verifie si on est sur la nouvelle version (recipients vide)
- 	//si les recipients n'existent pas alors je les ajoute sur le serveur
- 	if (!piki.get("recipients") && !request.object.existed() && piki.get("isPublic")== true) {
- 		
- 		console.log("ON A PAS DE RECIPIENTS");
- 		var userFriendsList = [];
- 		var userWhoMutedHimList = [];
-
- 		if (request.user.get("usersFriend") && request.user.get("usersWhoMutedMe")){
- 			//on va recup l'objet user
- 			userFriendsList = request.user.get("usersFriend");
- 			userWhoMutedHimList = request.user.get("usersWhoMutedMe");
- 		
- 			if (userFriendsList.length < 1000) {
-	 		
-	 		
-	 			//on enleve les users qui m'ont muté a ma liste de friends
-	 			for (var i = 0 ; i < userWhoMutedHimList.length ; i++) {
-		 		
-		 			var index = userFriendsList.indexOf(userWhoMutedHimList[i]);
-		 			if (index > -1) {
-				    	userFriendsList.splice(index, 1);
-				    	console.log("ON A TROUVE 1 USER QUI MA MUTE");
-					}
-		 		
-		 		
-	 			}
-	 		
-	 			console.log("ON VA AJOUTER : " +  userFriendsList.length + " recipients au piki public");
-	 		
-	 			//on ajoute le tableau dans les recipients du pleek
-	 			piki.set("recipients",userFriendsList);
-	 			piki.save({
-					 	 success: function(pikiSaved) {			  
-					  
-					  
-						  	console.log("piki saved with the recipients liste");
-					 
-					    
-					  	},
-					  	error: function() {
-					  
-					    // Execute any logic that should take place if the save fails.
-					    // error is a Parse.Error with an error code and message.
-					    	console.log("piki NOT saved with the recipients liste");
-					    
-					 	 }
-						});
-	 		
-	 		}
+	      	}).then(function(result) {
+	        	console.log("*** Piki thumbnail created ***")
+	      	}, function(error) {
+	        	console.log("*** ERROR *** : " + error);
+	      	});
  		}
- 		
- 		
- 	
- 	}
-  
-  
-   	//on update friendshipScore
- 	//on check si privé
- 	if (piki.get("isPublic")== false && !request.object.existed()) {
-	 	
-	 	//si privé on recupere les recipients
-	 	var recipients = piki.get("recipients");
 
-	 	friend.incrementBestScoreMultiUsers(request.user, recipients).then(function(){
-	 		console.log("increment scores");
-	 	})
+
+ 		//If the pleek is private we increment friendscores 
+ 		if (piki.get("isPublic") == false) {
+	 	
+	 		//si privé on recupere les recipients
+	 		var recipients = piki.get("recipients");
+
+	 		friend.incrementBestScoreMultiUsers(request.user, recipients).then(function(){
+	 			console.log("increment scores");
+	 		})
 
 	 	
+ 		}
+
  	}
-  
-  
+
    
 });
 
+
 Parse.Cloud.define("addToFirstUsePiki", function(request, response) {
 
-//response.success();
+	//ADD TEAM PLEEK, TODO : ADD MYSELF
+	var promises = [];
 
-	friend.addFriend(request.user, pikiTeamId).then(function(friendObject){
+	//Add myself
+	promises.push(friend.addFriend(request.user, request.user.id));
+
+	//Add teampleek
+	promises.push(friend.addFriend(request.user, pikiTeamId));
+
+	Parse.Promise.when(promises).then(function(){
 		response.success("**** PLEEKTEAM ADDED ****");
 	}, function(error){
 		response.error("**** ERROR ADDING PLEEKTEAM ****");
 	})
-
-	/*
-	Parse.Cloud.useMasterKey();
-	
-	
-	
-	var Piki = Parse.Object.extend("Piki");
-	var queryPiki = new Parse.Query(Piki);
-	
-	
-	queryPiki.containedIn("objectId",firstUsePeekeeIds);
-
-
-	queryPiki.find({
-		success: function(pikiFind) {
-		
-			if (pikiFind) {
-				
-				for (var i = 0; i < pikiFind.length ; i++) {
-					pikiFind[i].addUnique("recipients" , request.user.id);
-				}
-
-				//Saving all the installations
-				Parse.Object.saveAll(pikiFind, { 
-				
-					success: function(pikiSaved) {
-
-						//on va chercher le user pikiteam
-					    var User = Parse.Object.extend("User");
-						var queryUser = new Parse.Query(User);
-						
-						
-						queryUser.equalTo("objectId", pikiTeamId);
-					
-					
-						queryUser.first({
-							success: function(userFind) {
-							
-								if (userFind) {
-
-									//on save le friends avec le user en ami
-								    userFind.addUnique("usersFriend",request.user.id);
-									
-									//on save le user avec le new friends en ami
-								    request.user.addUnique("usersFriend",pikiTeamId);
-								    //on save le user avec le new friends en ami
-								    request.user.addUnique("usersFriend",request.user.id);
-								    
-								    Parse.Object.saveAll([request.user,userFind] , {
-									  success: function(friendsSaved) {			  
-									  
-									  
-									  	  //on ajoute les users à leurs channels
-											var query = new Parse.Query(Parse.Installation);
-											var changedObjects = [];
-											
-											query.containedIn("user",[userFind, request.user]);
-											query.find({
-												success: function(installations){
-												
-													for (var i = 0; i < installations.length; i++){
-													
-														//pour le user on le rajoute au channel du friends
-														if(installations[i].get("user").id == request.user.id) {
-														
-															var channelName = "channel_" + pikiTeamId;
-															
-														//pour le friends on le rajoute au channel du user
-														} else if (installations[i].get("user").id == pikiTeamId){
-														
-															var channelName = "channel_" + request.user.id;
-															
-														} else {
-															response.error("can't find the channel name");
-														}
-														
-														// Add the channel to all the installations for this user
-														installations[i].addUnique("channels", channelName); //Add the channel to the installation
-														changedObjects.push(installations[i]); //Add the installation to be saved later on!
-														
-													}
-													
-												
-													//Saving all the installations
-													Parse.Object.saveAll(changedObjects, { 
-													
-														success: function(installations) {
-				
-															response.success("2 first uses added + user is now friend with the pikiteam");
-														
-														},
-														error: function(error) {
-															// An error occurred while saving one of the objects.
-															response.error(error);
-														}
-													
-													});
-												},
-												error: function(error) {
-												response.error(error);
-												}
-											});						
-									 
-									    
-									  },
-									  error: function() {
-									  
-									    // Execute any logic that should take place if the save fails.
-									    // error is a Parse.Error with an error code and message.
-									    console.log('Failed to save the new recipient in user');
-									    
-									  }
-									});
-
-
-
-								}
-							
-							},
-							error: function() {
-							
-								console.log("\n ****** ERREUR DE LA RECHERCHE ******* \n");
-								reponse.error(" Pikiteam object don't find");
-								
-								
-							}
-						});
-						
-						
-					
-					},
-					error: function(error) {
-						// An error occurred while saving one of the objects.
-						response.error(error);
-					}
-				
-				});
-
-				
-			} else {
-			
-				console.log("\n ****** On a pas trouvé les piki first use ! ******* \n");
-				reponse.error(" Piki first use not find");
-			
-			}
-		
-		},
-		error: function() {
-		
-			console.log("\n ****** ERREUR DE LA RECHERCHE ******* \n");
-			reponse.error(" Piki first use not find");
-			
-			
-		}
-	});*/
-
 
 });
 
@@ -2306,90 +2025,81 @@ Parse.Cloud.define("addToFirstUsePiki", function(request, response) {
 *************************************************************/
 Parse.Cloud.define("confirmPhoneNumber", function(request, response) {
 
-var randomNumber = Math.floor((Math.random() * 8999) + 1000);
+	var randomNumber = Math.floor((Math.random() * 8999) + 1000);
 	randomNumber = 1988;
-	
-	
-	
-	console.log("Random confirm number : " + randomNumber );
-	var result = []; // create an empty array
-	
-	
 
+	var result = []; 
+
+	//Pick a number for Twillio service
 	var number = numberTab[Math.floor(Math.random()*numberTab.length)];
 	
-
  	Parse.Cloud.useMasterKey();
-
-	var User = Parse.Object.extend("User");
-	var UserInfos = Parse.Object.extend("UserInfos");
 	
-	var innerQuery = new Parse.Query(UserInfos);
+	//Get a userInfos with this phone Number
+	var innerQuery = new Parse.Query(Parse.Object.extend("UserInfos"));
 	innerQuery.equalTo("phoneNumber", request.params.phoneNumber);
 	
-	var query = new Parse.Query(User);
+	//Find user that match the userInfos found
+	var query = new Parse.Query(Parse.User);
 	query.matchesQuery("userInfos", innerQuery);
-	
-	query.find({
-	 success: function(userMatch) {
-	 
-	 
-	 	if (userMatch.length >0) {
-	 	
-	 			console.log("\n\n\n On a déjà un user, voici son pseudo : "+ userMatch[0].get("username") + "\n\n\n");
-		 		
-		 		// Send an SMS message
+
+
+	query.find().then(function(userMatch){
+
+		//A user already exists, he is trying to log in
+		if (userMatch.length > 0){
+
+			// Send an SMS message
 				client.sendSms({
 				    to: request.params.phoneNumber, 
 				    from: number, 
 				    body: 'Pleek! confirmation code : ' + randomNumber
 				  }, function(err, responseData) { 
+
 				    if (err) { 
-				      response.error("Failed to send the SMS");
-				      console.log("sms NOT sent : " + err + " \n reponse : " + responseData); 
-				    } else { 
-					  //on envoi le premier username trouvé
-			 		  result.push({
-						  randomNumber:   randomNumber,
-						  username: userMatch[0].get("username")
-					  });
-			 		  response.success(result);
-				      console.log("sms sent confirmation for existed user : " + userMatch[0].get("username")); 
+				    	console.log("sms NOT sent : " + err + " \n reponse : " + responseData); 
+				      	response.error("Failed to send the SMS");
+				    } 
+				    else { 
+				    	console.log("sms sent confirmation for existed user : " + userMatch[0].get("username")); 
+					  	//We send the username of the first user found
+			 		  	result.push({
+						  	randomNumber:   randomNumber,
+						  	username: userMatch[0].get("username")
+					  	});
+			 		  	response.success(result);
+				      
 				    }
-				  }
-				);
+				});
 
-
-	 	}else {
-	 	
-		 	console.log("\n\n\n No Match : on envoi le sms pour le code\n\n\n");
-		 	
-		 	// Send an SMS message
+		}
+		//New user
+		else{
+			// Send an SMS message
 			client.sendSms({
 			    to: request.params.phoneNumber, 
 			    from: number, 
 			    body: 'Pleek! confirmation code : ' + randomNumber
 			  }, function(err, responseData) { 
+
 			    if (err) { 
-			      response.error("Failed to send the SMS : " + err );
-			      console.log("sms NOT sent. Status : " + err.status + " \n Message : " + err.message ); 
-			    } else { 
-			      result.push({
-				    randomNumber:   randomNumber
-				  });
-				  response.success(result);
-			      console.log("sms sent confirmation for new user"); 
+			    	console.log("sms NOT sent. Status : " + err.status + " \n Message : " + err.message ); 
+			      	response.error("Failed to send the SMS : " + err );
+			      
+			    } 
+			    else { 
+			    	console.log("sms sent confirmation for new user"); 
+			      	result.push({
+				    	randomNumber:   randomNumber
+				  	});
+				  	response.success(result);
+			      	
 			    }
-			  }
-			);
-		 	
-	 	}
-	 
-	 
-	 },
-	  error: function() {
-	    console.log("Error: finding the user for connexion");
-	  }
+			});
+		}
+
+	}, function(error){
+		response.error("Failed to send the SMS : " + error);
 	});
 
 
@@ -2535,97 +2245,34 @@ Parse.Cloud.define("checkContactOnPiki", function(request, response) {
 *************************************************************/
 Parse.Cloud.define("savePiki", function(request, response) {
 	Parse.Cloud.useMasterKey();
-	
-	var pikiId = request.params.pikiId;
-	var message = "@" + request.user.get("username") + " sent you a new Pleek!! 😜";
-	
-	// Validate the message text.
-	// For example make sure it is under 140 characters
-	if (message.length > 140) {
-	// Truncate and add a ...
-	message = message.substring(0, 137) + "...";
-	}
 
+	//private
+	if (request.params.recipients){
+		utils.pushNewPleek(request.user, request.params.pikiId, request.params.recipients).then(function(){
 
-	//on verifie le type de piki
-	if (request.params.type == "sendToAll" ) {
-		
-		console.log("***  piki send to all  ***");
-		
-		var channelName = "channel_" + request.user.id;
+		}).then(function(){
 
-		var query = new Parse.Query(Parse.Installation);
-		query.equalTo('channels', channelName); // Set our channel
-		query.notEqualTo("notificationsEnabled", false);
+			response.success("Push Sent");
 
-		Parse.Push.send({
-		  where: query,
-		  data: {
-		    alert: message,
-		    type : "newPiki",
-		    sound : "Birdy_Notification2.wav",
-			"pikiId" : pikiId
-		  }
-		}, {
-		  success: function() {
-		    // Push was successful
-		    response.success("push send for piki private");
-		  },
-		  error: function(error) {
-		    // Handle error
-		    response.error("push not send for piki private");
-		  }
+		}, function(error){
+
+			response.error(error);
+
 		});
-
-		
-		
-	}else if (request.params.type == "private"){
-		
-		  console.log("***  piki private  ***");
-		 
-		  // Send the push.
-		  // Find devices associated with the recipient user
-		  var pushQuery = new Parse.Query(Parse.Installation);
-		  
-		  var User = Parse.Object.extend("User");
-		  var innerQuery = new Parse.Query(User);
-		  
-		  
-		  innerQuery.containedIn("objectId",request.params.recipients);
-		  innerQuery.notEqualTo("objectId",request.user.id);
-		  pushQuery.matchesQuery("user", innerQuery);
-		  pushQuery.notEqualTo("notificationsEnabled", false);
-		  
-		  // Send the push notification to results of the query
-		  Parse.Push.send({
-			  where: pushQuery, // Set our Installation query
-			  data: {
-			    alert: message,
-			    badge : "Increment",
-				sound : "Birdy_Notification2.wav",
-				type : "newPiki",
-				"pikiId" : pikiId
-			  }
-			}, {
-			  success: function() {
-			    // Push sent successful
-			    console.log("New Piki push send");
-			    response.success("push send");
-			  },
-			  error: function(error) {
-			    // Handle error
-			    console.log("Error while sending new Piki push");
-			    response.error();
-			  }
-			});
-		
-		
-		
-		
-	} else {
-		response.error("no type send");
 	}
-	
+	else{
+		utils.pushNewPleek(request.user, request.params.pikiId).then(function(){
+
+		}).then(function(){
+
+			response.success("Push Sent");
+
+		}, function(error){
+
+			response.error(error);
+			
+		});
+	}
 		
 
 });
@@ -3658,7 +3305,7 @@ Parse.Cloud.job("generateDayStats", function(request, status) {
 
 	// Date of today
 	var dateToday = new Date();
-	dateToday.setDate(dateYesterday.getDate() - 1);
+	dateToday.setDate(dateToday.getDate() - 1);
 	dateToday.setHours(22)
 	dateToday.setMinutes(0)
 	dateToday.setSeconds(0)
@@ -3684,14 +3331,14 @@ Parse.Cloud.job("generateDayStats", function(request, status) {
 
 	Parse.Promise.when(promises).then(function(nbUser, nbReact, nbPleek){
 
-		var msg = "Stats of yesterday : \n New Users : "+nbUser+" \n Pleek sent : "+nbPleek+" \n React sent : "+nbReact;
-		var channelName = "#newuser";
-		var usernameName = "Pleek users";
+		var msg = "Stats of yesterday : \n 👦 New Users : "+nbUser+" \n 📷 Pleek sent : "+nbPleek+" \n ✉️ React sent : "+nbReact;
+		var channelName = "#stats";
+		var usernameName = "Day Stats";
 		
 		return slack.send({text: msg, channel: channelName,  username : usernameName});
 
 	}).then(function(){
-		status.success("Stats Generated");
+		status.success("Day Stats");
 	}, function(error){
 		status.error("Error :"+error);
 	})
@@ -3699,7 +3346,51 @@ Parse.Cloud.job("generateDayStats", function(request, status) {
 });
 
 
+Parse.Cloud.job("generateForeverStats", function(request, status) {
+	Parse.Cloud.useMasterKey();	
+	var promises = [];
 
+	// Date of today
+	var dateToday = new Date();
+	dateToday.setDate(dateToday.getDate() - 1);
+	dateToday.setHours(22);
+	dateToday.setMinutes(0);
+	dateToday.setSeconds(0);
+
+	//NB USER TODAY
+	var query = new Parse.Query(Parse.User);
+	query.lessThan("createdAt", dateToday);
+	promises.push(query.count());
+
+	//NB REACT TODAY
+	var queryReact = new Parse.Query(Parse.Object.extend("React"));
+	queryReact.lessThan("createdAt", dateToday);
+	promises.push(queryReact.count());
+
+	//NB PLEEK TODAY
+	var queryPleek = new Parse.Query(Parse.Object.extend("Piki"));
+	queryPleek.lessThan("createdAt", dateToday);
+	promises.push(queryPleek.count());
+
+	Parse.Promise.when(promises).then(function(nbUser, nbReact, nbPleek){
+
+		var msg = "📢 General Stats  : \n 👦 Users : "+nbUser+" \n 📷 Pleek sent : "+nbPleek+" \n ✉️ React sent : "+nbReact;
+		var channelName = "#stats";
+		var usernameName = "General Stats";
+		
+		return slack.send({text: msg, channel: channelName,  username : usernameName});
+
+	}).then(function(){
+		status.success("Stats Generated");
+	}, function(error){
+		status.error("Error :"+error);
+	});
+
+});
+
+/////////////////// STATS ////////////////////////////////
+//////////////////   END  ////////////////////////////////
+////////////////////////////////////////////////////////
 
 /************
 

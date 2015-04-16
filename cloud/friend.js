@@ -78,7 +78,7 @@ exports.addFriend = function(user, friendId){
       return query.get(friendId);
     }
     else{
-      promise.reject("User is already a friend");
+      return Parse.Promise.error("User is already a friend");
     }
 
   }).then(function(friend){
@@ -96,7 +96,7 @@ exports.addFriend = function(user, friendId){
 
     }
     else{
-      promise.reject("No user found");
+      return Parse.Promise.error("No user found");
     }
 
   }).then(function(){
@@ -138,3 +138,31 @@ exports.addFriend = function(user, friendId){
   return promise;
 
 }
+
+
+exports.getFriends = function(user, withFriendObject){
+
+  var promise = new Parse.Promise();
+
+  var queryFriend = new Parse.Query(Parse.Object.extend("Friend"));
+  queryFriend.equalTo("user", user);
+
+  if (withFriendObject){
+    queryFriend.include("friend");
+  }
+
+  queryFriend.find().then(function(friendObjects){
+
+    promise.resolve(friendObjects);
+
+  }, function(error){
+
+    promise.reject(error);
+
+  })
+
+
+  return promise;
+
+}
+
