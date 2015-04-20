@@ -55,7 +55,7 @@ exports.pushNewPleek = function(userWhoSend, pikiId, recipients){
 
 	var promise = new Parse.Promise();
 
-	var messageToPush = "@"+userWhoSend.get("username")+" sent your a new Pleek!😜";
+	var messageToPush = "@"+userWhoSend.get("username")+" sent you a new Pleek!😜";
 	var channelName = "channel_" + userWhoSend.id;
 
 	//Limit size of the message

@@ -3,6 +3,7 @@ var client = require('twilio')('AC565e7be131da6f810b8d746874fb3774', '8d43234121
 var Image = require("parse-image");
 var friend = require('cloud/friend.js');
 var utils = require('cloud/utils.js');
+var react = require('cloud/react.js');
 var Slack = require('cloud/slack.js');
 var slack = new Slack('https://hooks.slack.com/services/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');
 
@@ -1297,35 +1298,39 @@ Parse.Cloud.afterSave(Parse.Installation, function(request, response) {
 Parse.Cloud.define("sendPushNewComment", function(request, response){
 
 	//If public adapt the push sent
-	if(request.params.isPublic == true){
+	var Piki = Parse.Object.extend("Piki");
+	var queryPiki = new Parse.Query(Piki);
+	queryPiki.include("user");
 
-		var Piki = Parse.Object.extend("Piki");
-		var queryPiki = new Parse.Query(Piki);
-		queryPiki.include("user");
+	queryPiki.get(request.params.pikiId).then(function(pikiFind){
 
-		queryPiki.get(request.params.pikiId).then(function(pikiFind){
+		if (pikiFind){
 
-			if (pikiFind){
+			//Send Push new react
+			react.pushForNewReact(pikiFind, request.user).then(function(){
+				response.success("Pushes Sent");
 
-				//Send Push new react
+			}, function(error){
+				response.error(error);
+			})
 
-			}
-			else{
+		}
+		else{
 
-				return Parse.Promise.error("Pleek not find");
+			response.error("Pleek not found");
 
-			}
+		}
 
-		})
+	}, function(error){
 
-	}
-	else{
+		response.error(error);
 
-	}
+	});
 
 });
 
-Parse.Cloud.define("sendPushNewComment", function(request, response) {
+/*
+Parse.Cloud.define("sendPushNewCommentV1", function(request, response) {
  
   
   
@@ -1351,96 +1356,6 @@ Parse.Cloud.define("sendPushNewComment", function(request, response) {
 				if (pikiFind) {
 				
 					var pikiToSave = pikiFind
-					
-					//on va modifier le lastUpdate selon le nombre et le type de piki
-					//si c'est un piki public
-					
-					
-					//si < X recipients. On va pusher certains seuils
-					/*if (pikiToSave.get("recipients").length < nbRecipientsMaxToPublicPleekPush) {
-					
-						
-						//on ne remonte la piki que si il y a 10, 100 500, 1500, 3000, 5000 reponses
-						if( pikiToSave.get("nbReaction") == 10 ||pikiToSave.get("nbReaction") == 25 || pikiToSave.get("nbReaction") == 100 || pikiToSave.get("nbReaction") == 250 || pikiToSave.get("nbReaction") == 500 || pikiToSave.get("nbReaction") == 1500 || pikiToSave.get("nbReaction") == 3000 || pikiToSave.get("nbReaction") == 50 ) {
-							
-							  
-							  
-							 if (pikiToSave.get("nbReaction") == 5) {
-							 
-							  	var messagePikiOwner = "Pretty Cool! 5 answers on @" + pikiToSave.get("user").get("username") + "'s Pleek ! 😻";
-							  
-							  } else if (pikiToSave.get("nbReaction") == 10) {
-							  
-							  	var messagePikiOwner = "Awesome! 10 answers on @" + pikiToSave.get("user").get("username") + "'s Pleek ! 👑";
-							  
-							  } else if (pikiToSave.get("nbReaction") == 25) {
-							  
-							  	var messagePikiOwner = "It's making some noise!! 25 answers on @" + pikiToSave.get("user").get("username") + "'s Pleek ! 📢";
-							  
-							  } else if (pikiToSave.get("nbReaction") == 50) {
-							  
-							  	var messagePikiOwner = "It's getting big! 50 answers on @" + pikiToSave.get("user").get("username") + "'s Pleek ! 😱";
-							  
-							  } else if (pikiToSave.get("nbReaction") == 100) {
-							  
-							  	var messagePikiOwner = "Huge!! 100 answers reach on @" + pikiToSave.get("user").get("username") + "'s Pleek ! 🌟";
-							  
-							  } else if (pikiToSave.get("nbReaction") == 250) {
-							  
-							  var messagePikiOwner = "WoOoOooOOw !! 250 answers on @" + pikiToSave.get("user").get("username") + "'s Pleek ! 🌟🌟";
-							  
-							  } else if (pikiToSave.get("nbReaction") == 500) {
-							  
-							  var messagePikiOwner = "Buzzzzz! 500 answers on @" + pikiToSave.get("user").get("username") + "'s Pleek ! 🌟🌟🌟🌟🌟";
-							  
-							  } else {
-							  
-							  var messagePikiOwner = "@" + pikiToSave.get("user").get("username") + "'s Pleek now has more than " + pikiToSave.get("nbReaction") + " answers ! ";
-							  
-							  }
-							  
-												  
-							  var channelName = "channel_" + pikiToSave.get("user").id;	
-							  
-							  var query = new Parse.Query(Parse.Installation);
-							  query.equalTo('channels', channelName); // Set our channel
-							  query.notEqualTo("notificationsEnabled", false);
-							  					  
-							  
-							  // Send the push notification to results of the query
-							  Parse.Push.send({
-								  where: query,
-								  data: {
-								    alert: messagePikiOwner,
-								    badge : "Increment",
-									sound : "Space_Notification1.wav",
-									"content-available" : 1
-								  }
-								}, {
-								  success: function() {
-								    // Push sent successful
-								    console.log('New react push send');
-								    response.success('New react push send en pleek public car seuil de react atteint');
-								  },
-								  error: function(error) {
-								    // Handle error
-								    console.log("Error while sending new react push");
-								  }
-								});				
-							
-							
-							
-							
-							
-							
-						} else {
-							console.log("on N'A PAS update le last Update car il est public et il avait : " + pikiToSave.get("nbReaction") + " reacts");
-							response.success('Pas de push sent car pleek public');
-						}
-						
-						
-					//si + X recipients. On va pusher certains seuils au dessus
-					} else {*/
 					
 					
 					//on ne remonte la piki que si il y a 10, 100 500, 1500, 3000, 5000 reponses
@@ -1659,11 +1574,63 @@ Parse.Cloud.define("sendPushNewComment", function(request, response) {
 	}
   
   
-});
+});*/
 
 //**********************//
 // create thumbnail piki
 //**********************//
+Parse.Cloud.afterSave("React", function(request, response) {
+	Parse.Cloud.useMasterKey();
+	
+ 	var reactObject = request.object;
+
+ 	if (!request.object.existed()){
+
+ 		var imageToCropName = "photo";
+
+ 		if (reactObject.get("video")){
+
+ 			imageToCropName = "previewImage";
+
+ 		}
+
+ 		//Cropp 
+ 		Parse.Cloud.httpRequest({
+	        url: reactObject.get(imageToCropName).url()
+	      
+	    }).then(function(response) {
+	        var image = new Image();
+	        return image.setData(response.buffer);
+	      
+	    }).then(function(image) {
+	        // Resize the image to 64x64.
+	        return utils.cropImage(image, 120, 120, "thumbnail");
+	      
+	    }).then(function(cropped) {
+	        // Attach the image file to the original object.
+	        reactObject.set("smallPhoto", cropped);
+	        return reactObject.save();
+	      
+	    }).then(function(result) {
+	    	var promises = [];
+	        
+	        promises.push(react.createLastReacts(request.object.get("Piki"), true));
+	        promises.push(react.updateLastUpdateReact(request.object.get("Piki")));
+
+	        return Parse.Promise.when(promises);
+
+	    }).then(function(){
+	    	console.log("**** GOOD **** : After Save React succeeded");
+	        
+	    }, function(error) {
+	        console.log("*** ERROR *** :" + error);
+	    });
+
+ 	}
+
+ });
+
+/*
 Parse.Cloud.afterSave("React", function(request, response) {
 	Parse.Cloud.useMasterKey();
 	
@@ -1919,7 +1886,7 @@ Parse.Cloud.afterSave("React", function(request, response) {
 	
 	}
 
-});
+});*/
 
 //**********************//
 // create thumbnail piki
@@ -2496,6 +2463,57 @@ Parse.Cloud.define("hideOrRemovePiki", function(request, response) {
 /*************************************************************
 **************      fonction remove or remove the react   *************
 *************************************************************/
+Parse.Cloud.afterDelete("React", function(request) {
+	Parse.Cloud.useMasterKey();
+  
+	var queryPleek = new Parse.Query(Parse.Object.extend("Piki"));
+	queryPleek.get(request.object.get("Piki").id).then(function(pleek){
+		var promises = [];
+		pleek.increment("nbReaction", -1);
+
+		promises.push(pleek.save());
+		promises.push(react.createLastReacts(pleek, false));
+
+		return Parse.Promise.when(promises);
+
+	}).then(function(){
+
+	}, function(error){
+		console.log("*** ERROR after delete React : "+error+" ***");
+	})
+
+});
+
+
+Parse.Cloud.define("reportOrRemoveReact", function(request, response) {	
+
+	Parse.Cloud.useMasterKey();	
+	var reactId = request.params.reactId;
+
+	//Query React
+	var queryReact = new Parse.Query(Parse.Object.extend("React"));
+	queryReact.include("Piki");
+	queryReact.get(reactId).then(function(reactObject){
+
+		//All these persons can remove the react
+		if (_.contains([reactObject.get("user").id, reactObject.get("Piki").get("user").id, pikiTeamId, remiId, cyrilId], request.user.id)){
+			return reactObject.destroy();
+		}
+		//Else we just report the react
+		else{
+			reactObject.addUnique("reported",request.user.id);
+			return reactObject.save();
+		}
+
+	}).then(function(){
+		response.success("React removed or reported");
+	}, function(error){
+		response.error(error);
+	});
+
+});
+
+/*
 Parse.Cloud.define("reportOrRemoveReact", function(request, response) {	
 
 	Parse.Cloud.useMasterKey();	
@@ -2536,10 +2554,6 @@ Parse.Cloud.define("reportOrRemoveReact", function(request, response) {
 					
 					queryGetReact.count({
 					  success: function(count) {
-					    // The count request succeeded. Show the count
-						pikiObjectToSave.set("nbReaction" , count);
-
-						console.log("refresh nbreaction : " + count);
 						var queryReact2 = new Parse.Query(React);
 						
 						//on va recup les pikis posté par le friend
@@ -2651,7 +2665,7 @@ Parse.Cloud.define("reportOrRemoveReact", function(request, response) {
 	  }
 	});
 
-});
+});*/
 
 /*************************************************************
 **************      report a piki  *************
