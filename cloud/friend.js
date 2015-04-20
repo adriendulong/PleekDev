@@ -166,3 +166,82 @@ exports.getFriends = function(user, withFriendObject){
 
 }
 
+
+//Migrate all the old friends model to the new one (table Friend)
+exports.migrateFriends = function(user) {
+  
+  var promise = new Parse.Promise();
+  var startDate = new Date()
+  Parse.Cloud.useMasterKey();
+  var counter = 0;
+  
+  var mainUser = user
+  var friendsObjects = [];
+
+  var queryFriend = new Parse.Query(Parse.User);
+
+  if (!user.get("usersFriend")){
+      return Parse.Promise.as();
+  }
+  else if (user.get("usersFriend").length > 300){
+    //Don't transform the friends for the prople who has more than 300 friends : they are spammer or stars
+    return Parse.Promise.as();
+  }
+  else{
+    queryFriend.containedIn("objectId", user.get("usersFriend"));
+  }
+
+  queryFriend.find().then(function(friends){
+
+    var Friend = Parse.Object.extend("Friend");
+    var promises = [];
+    
+    _.each(friends, function(friend){
+      var newFriend = new Friend();
+      newFriend.set("friend", friend);
+      newFriend.set("friendId", friend.id);
+      newFriend.set("user", mainUser);
+      newFriend.set("score", 0);
+
+      var ACLFriend = new Parse.ACL();
+      ACLFriend.setPublicReadAccess(true);
+      ACLFriend.setWriteAccess(mainUser, true);
+      newFriend.setACL(ACLFriend);
+
+      friendsObjects.push(newFriend);
+
+      promises.push(newFriend.save());
+    })
+
+    // Create all friends object
+    console.log("**** SAVE ALL FRIENDS *****");
+    return Parse.Promise.when(promises);
+
+    
+  }).then(function(){
+
+    console.log("**** SET USER *****");
+    mainUser.set("nbFriends", friendsObjects.length);
+    mainUser.set("lastFriendsModification", new Date());
+    mainUser.set("migrationFriendsDone", true);
+
+    // Add all the PFRelation between the user and the friends
+    return mainUser.save()
+
+  }).then(function(){
+    console.log("**** FINISH MIGRATION OF THIS USER *****");
+    var endDate = new Date();
+    var lengthJob = endDate - startDate;
+    promise.resolve("Migration completed successfully in "+lengthJob+".");
+
+  }, function(error) {
+    // Set the job's error status
+    promise.reject("Uh oh, something went wrong." + error);
+  });
+
+
+  return promise;
+
+
+}
+
