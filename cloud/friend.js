@@ -187,6 +187,9 @@ exports.migrateFriends = function(user) {
     //Don't transform the friends for the prople who has more than 300 friends : they are spammer or stars
     return Parse.Promise.as();
   }
+  else if (user.get("migrationFriendsDone")){
+    return Parse.Promise.as();
+  }
   else{
     queryFriend.containedIn("objectId", user.get("usersFriend"));
   }
@@ -213,30 +216,84 @@ exports.migrateFriends = function(user) {
       promises.push(newFriend.save());
     })
 
-    // Create all friends object
-    console.log("**** SAVE ALL FRIENDS *****");
-    return Parse.Promise.when(promises);
 
-    
-  }).then(function(){
-
-    console.log("**** SET USER *****");
     mainUser.set("nbFriends", friendsObjects.length);
     mainUser.set("lastFriendsModification", new Date());
     mainUser.set("migrationFriendsDone", true);
+    promises.push(mainUser.save());
 
-    // Add all the PFRelation between the user and the friends
-    return mainUser.save()
+    // Create all friends object
+    return Parse.Promise.when(promises);
+    //return Parse.Object.saveAll(friendsObjects);
 
+    
   }).then(function(){
-    console.log("**** FINISH MIGRATION OF THIS USER *****");
     var endDate = new Date();
     var lengthJob = endDate - startDate;
+    console.log("Finish migration for user : "+user.id);
     promise.resolve("Migration completed successfully in "+lengthJob+".");
 
   }, function(error) {
     // Set the job's error status
     promise.reject("Uh oh, something went wrong." + error);
+  });
+
+
+  return promise;
+
+
+}
+
+
+
+exports.migrateMultipleFriends = function(nbToMigrate, letter){
+
+  Parse.Cloud.useMasterKey();
+  var promise = new Parse.Promise();
+  var nbUserToMigrate = 0;
+
+  var query = new Parse.Query(Parse.User);
+  query.equalTo("migrationFriendsDone", false)
+  query.equalTo("isBigAccount", false)
+  query.startsWith("username", letter);
+  query.limit(nbToMigrate);
+  query.find().then(function(usersToMigrate){
+
+    nbUserToMigrate = usersToMigrate.length
+    console.log("***** USERS TO MIGRATE : "+usersToMigrate.length+" *****");
+
+    
+    /*var promises = [];
+
+    _.each(usersToMigrate, function(userToMigrate){
+        promises.push(exports.migrateFriends(userToMigrate));
+    });
+
+    return Parse.Promise.when(promises);*/
+
+    
+    
+    var promiseSerie = Parse.Promise.as();
+    _.each(usersToMigrate, function(userToMigrate) {
+     
+      promiseSerie = promiseSerie.then(function() {
+
+        return exports.migrateFriends(userToMigrate);
+
+      });
+    });
+    return promiseSerie;
+
+
+    
+
+
+  }).then(function(){
+    console.log("***** USERS MIGRATED : "+nbUserToMigrate+" *****");
+    promise.resolve("***** USERS MIGRATED : "+nbUserToMigrate+" *****");
+
+  }, function(error){
+      promise.reject("Problem migrating friends : " + error);
   });
 
 

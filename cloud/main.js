@@ -1,5 +1,42 @@
+
+var infosDev = {
+	twillio_sid : "AC565e7be131da6f810b8d746874fb3774",
+	twilio_token : "8d432341211ffaca933c13dd2e000eea",
+	accounts_id : {
+		pleekTeam_id : "TMaNfNq0Kl",
+		remi_id : "0ufOfqJZM5",
+		adrien_id : "8BvQhG1fPu",
+		cyril_id : "MVFSYoDHWb",
+	}
+}
+
+
+var infosProd = {
+	twillio_sid : "AC565e7be131da6f810b8d746874fb3774",
+	twilio_toker : "8d432341211ffaca933c13dd2e000eea",
+	accounts_id : {
+		pleekTeam_id : "1IJJAdzBYR",
+		remi_id : "SD7bSBaCI0",
+		adrien_id : "Qb1h3r79yi",
+		cyril_id : "NDWV7E98zE",
+	}
+}
+
+//WE ARE IN PROD OR DEV ???
+var isProd = false;
+
+//Modify between dev and Prod
+var infosApp;
+if (isProd){
+	infosApp = infosProd;
+}
+else{
+	infosApp = infosDev;
+}
+
+
 // Require and initialize the Twilio module with your credentials
-var client = require('twilio')('AC565e7be131da6f810b8d746874fb3774', '8d432341211ffaca933c13dd2e000eea');
+var client = require('twilio')(infosApp.twillio_sid, infosApp.twilio_token);
 var Image = require("parse-image");
 var friend = require('cloud/friend.js');
 var utils = require('cloud/utils.js');
@@ -8,33 +45,22 @@ var Slack = require('cloud/slack.js');
 var slack = new Slack('https://hooks.slack.com/services/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');
 
 _ = require('underscore.js')
-
-/* ######## @@@@@@@@ ######## @@@@@@@@ ######## @@@@@@@@ 
-   ######## @@@@@@@@ ######## @@@@@@@@ ######## @@@@@@@@ 
-Supprimer les fonctions sendPushNewPiki, sendPushNewReact
-   ######## @@@@@@@@ ######## @@@@@@@@ ######## @@@@@@@@ 
-   ######## @@@@@@@@ ######## @@@@@@@@ ######## @@@@@@@@     */
-   
-   //DEV VERSION 
-   var pikiTeamId = "TMaNfNq0Kl";
-   var remiId = "0ufOfqJZM5";
-   var adrienId = "8BvQhG1fPu";
-   var cyrilId = "MVFSYoDHWb";
-   
-   var firstUsePeekeeIds = ["fI7hLy3Ian" , "6DYaqoO2aG"];
-   var nbRecipientsMaxToPublicPleekPush = 500;
-   var ApplicationId = "BA7FMG5LmMRx0RIPw3XdrOkR7FTnnSe4SIMRrnRG";
-   var MasterKey = "AKQhW3cNH3y4nwaKovCNhAcUeW6Z4rasX3OdiIkR";
+ 
+var pikiTeamId = infosApp.accounts_id.pleekTeam_id;
+var remiId = infosApp.accounts_id.remi_id;
+var adrienId = infosApp.accounts_id.adrien_id;
+var cyrilId = infosApp.accounts_id.cyril_id;
    
 
-
-  
-
-
+//TO DELETE
+var firstUsePeekeeIds = ["fI7hLy3Ian" , "6DYaqoO2aG"];
+var nbRecipientsMaxToPublicPleekPush = 500;
+var ApplicationId = "BA7FMG5LmMRx0RIPw3XdrOkR7FTnnSe4SIMRrnRG";
+var MasterKey = "AKQhW3cNH3y4nwaKovCNhAcUeW6Z4rasX3OdiIkR";
    
-   
-   
-	var numberTab = ['+18444311851','+18444871402','+18444524509','+18444396638','+18669777429','+18444311833','+18444311819','+18444871404','+18444683581','+18443258728','+18443240467','+18669574382','+18444871423','+18442907653','+18444871406','+18444871432','+18445019774','+18664598710','+18444311868','+18444871424','+18444311798','+18662058264','+18445019781','+18445019772','+18444311828','+18444871408','+18445019801','+18444871410','+18667047183','+18444997329','+18442761551','+18667047083','+18444311806','+18445189538','+18445019773','+18445019780','+18444871409','+18445019800','+18662067260','+18444318358','+18445189545','+18445189541','+18445189583','+18445189539','+18445019799','+18444434258','+18445189547','+18666800432','+18445189551','+18444932543','+18444337329','+18445189536','+18444311863','+18445019792','+18445019793','+18445189558','+18445019786','+18668979247','+18445189557','+18445019779','+18444871401','+18445019798','+18445019790','+18444871428','+18444311864','+18445189533','+18445019794','+18669930488','+18445189590','+18443363593','+18662202536','+18669579612','+18445189585','+18445189598','+18445019783','+18445189540','+18445189542','+18445189594','+18669789271','+18662299916','+18445189599','+18445019789','+18445189552','+18445189607','+18445189556','+18444871430','+18444871431','+18445189593','+18445189613','+18445189618','+18446152205','+18668043969','+18447896913','+18445774516','+18774238223','+18448073101','+18445774508','+18444167185','+18448285134','+18446789329','+18442878738','+18774517542','+18773143135','+18448232428','+18777876882','+18777788915','+18777449717','+18445540204','+18778402839','+18777613644','+18669375702','+18774826870','+18662283479','+18448713298','+18448692001','+18442948483','+18445532035','+18662352668','+18445544022','+18443576859','+18776209584','+18442027272','+18442948232','+18778011077','+18448185969','+18775121738','+18772321586','+18669868538','+18445920006','+18446110638','+18442148412','+18444308482','+18442147932','+18779272387','+18443345957','+18776113832','+18442148387','+18775125523','+18776472048','+18772499741','+18777454906','+18448691995','+18448073102','+18448073100','+18448232437','+18778176077','+18448692002','+18448713299','+18669378429','+18442148781','+18777901310','+18445774510','+18442686339','+18444485309','+18442148421','+18446152211','+18446152210','+18668702352','+18554667018','+18775329524','+18446155200','+18445579015','+18442148783','+18554667101','+18446152209','+18669377988','+18444690691','+18669375713','+18448073108','+18776665717','+18666335853','+18446152214','+18669377995','+18779599822','+18443347045','+18445579020','+18442148424','+18444690664','+18448285132','+18448691996','+18777606352','+18448892484','+18448892490','+18669375707','+18444694712','+18448285133','+18772997311','+18449772522','+18448285139','+18442148801','+18665974690','+18446627037','+18449732283','+18442148786','+18444694827','+18667873042','+18445185525','+18662063737','+18445185527','+18445789329'];
+
+//Number to use for Twillio
+var numberTab = ['+18444311851','+18444871402','+18444524509','+18444396638','+18669777429','+18444311833','+18444311819','+18444871404','+18444683581','+18443258728','+18443240467','+18669574382','+18444871423','+18442907653','+18444871406','+18444871432','+18445019774','+18664598710','+18444311868','+18444871424','+18444311798','+18662058264','+18445019781','+18445019772','+18444311828','+18444871408','+18445019801','+18444871410','+18667047183','+18444997329','+18442761551','+18667047083','+18444311806','+18445189538','+18445019773','+18445019780','+18444871409','+18445019800','+18662067260','+18444318358','+18445189545','+18445189541','+18445189583','+18445189539','+18445019799','+18444434258','+18445189547','+18666800432','+18445189551','+18444932543','+18444337329','+18445189536','+18444311863','+18445019792','+18445019793','+18445189558','+18445019786','+18668979247','+18445189557','+18445019779','+18444871401','+18445019798','+18445019790','+18444871428','+18444311864','+18445189533','+18445019794','+18669930488','+18445189590','+18443363593','+18662202536','+18669579612','+18445189585','+18445189598','+18445019783','+18445189540','+18445189542','+18445189594','+18669789271','+18662299916','+18445189599','+18445019789','+18445189552','+18445189607','+18445189556','+18444871430','+18444871431','+18445189593','+18445189613','+18445189618','+18446152205','+18668043969','+18447896913','+18445774516','+18774238223','+18448073101','+18445774508','+18444167185','+18448285134','+18446789329','+18442878738','+18774517542','+18773143135','+18448232428','+18777876882','+18777788915','+18777449717','+18445540204','+18778402839','+18777613644','+18669375702','+18774826870','+18662283479','+18448713298','+18448692001','+18442948483','+18445532035','+18662352668','+18445544022','+18443576859','+18776209584','+18442027272','+18442948232','+18778011077','+18448185969','+18775121738','+18772321586','+18669868538','+18445920006','+18446110638','+18442148412','+18444308482','+18442147932','+18779272387','+18443345957','+18776113832','+18442148387','+18775125523','+18776472048','+18772499741','+18777454906','+18448691995','+18448073102','+18448073100','+18448232437','+18778176077','+18448692002','+18448713299','+18669378429','+18442148781','+18777901310','+18445774510','+18442686339','+18444485309','+18442148421','+18446152211','+18446152210','+18668702352','+18554667018','+18775329524','+18446155200','+18445579015','+18442148783','+18554667101','+18446152209','+18669377988','+18444690691','+18669375713','+18448073108','+18776665717','+18666335853','+18446152214','+18669377995','+18779599822','+18443347045','+18445579020','+18442148424','+18444690664','+18448285132','+18448691996','+18777606352','+18448892484','+18448892490','+18669375707','+18444694712','+18448285133','+18772997311','+18449772522','+18448285139','+18442148801','+18665974690','+18446627037','+18449732283','+18442148786','+18444694827','+18667873042','+18445185525','+18662063737','+18445185527','+18445789329'];
 	
 
 
@@ -111,16 +137,34 @@ Parse.Cloud.job("setMigrationFriendsFalse", function(request, status) {
   var startDate = new Date()
   Parse.Cloud.useMasterKey();
   var counter = 0;
+  var letter = request.params.letter;
 
   //Go through all the users
   var query = new Parse.Query(Parse.User);
-  //query.doesNotExist("migrationFriendsDone");
+  query.doesNotExist("migrationFriendsDone");
+
+  if (letter !== "0"){
+  	query.startsWith("username", letter);
+  }
+
   query.each(function(user) {
 
   	if (counter % 100 === 0) {
         status.message(counter + " users processed.");
     }
     counter += 1;
+
+    if(user.get("usersFriend")){
+    	if (user.get("usersFriend").length > 300){
+    		user.set("isBigAccount", true);
+    	}
+    	else{
+    		user.set("isBigAccount", false);
+    	}
+    }
+    else{
+    	user.set("isBigAccount", false);
+    }
 
   	user.set("migrationFriendsDone", false);
   	user.set("ACLsetDone", false);
@@ -132,7 +176,7 @@ Parse.Cloud.job("setMigrationFriendsFalse", function(request, status) {
 
   	var endDate = new Date();
   	var lengthJob = endDate - startDate;
-  	status.success("Set false to all users done in "+lengthJob+".");
+  	status.success("Set false to "+counter+" users done in "+lengthJob+" for letter : "+letter);
 
   }, function(error) {
     // Set the job's error status
@@ -148,10 +192,18 @@ Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
   var startDate = new Date()
   Parse.Cloud.useMasterKey();
   var counter = 0;
-
+  var nbSeries = 0;
+  var letter = request.params.letter;
+  
   //Go through all the users
   var query = new Parse.Query(Parse.User);
   query.equalTo("migrationFriendsDone", false)
+  query.equalTo("isBigAccount", false)
+
+  if (letter !== "0"){
+  	query.startsWith("username", letter);
+  }
+  
   query.each(function(user) {
 
     //See if it has been more that x minutes
@@ -181,7 +233,7 @@ Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
 
   	var endDate = new Date();
   	var lengthJob = endDate - startDate;
-  	status.success("Migration completed successfully in "+lengthJob+" for "+counter+" users");
+  	status.success("Migration completed successfully in "+lengthJob+" for letter : "+letter+" and "+counter+" users");
 
   }, function(error) {
     // Set the job's error status
@@ -190,6 +242,30 @@ Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
 
 });
 
+
+
+//Nb of users to migrate for a specified letter
+Parse.Cloud.define("countFriendsToMigrate", function(request, response) {
+	Parse.Cloud.useMasterKey();	
+	
+
+
+	var letter = request.params.letter;
+
+	console.log("Letter : "+letter);
+
+	var query = new Parse.Query(Parse.User);
+  	query.equalTo("migrationFriendsDone", false)
+  	query.equalTo("isBigAccount", false)
+  	query.startsWith("username", letter);
+  	query.count().then(function(nbToMigrate){
+  		response.success("Still to migrate with letter "+letter+" : "+nbToMigrate);
+  	}, function(error){
+  		response.success("Problem counting");
+  	});
+	
+	
+});
 
 //Set FriendshipScores
 Parse.Cloud.job("setFriendshipScores", function(request, status){
@@ -298,26 +374,32 @@ Parse.Cloud.afterSave("Friend", function(request) {
 			pushQuery.equalTo("user",friendObject);
 			pushQuery.notEqualTo("notificationsEnabled", false);
 
-			var message;
 
-			if (userObject.get("username")){
-				message = "@" + userObject.get("username") + " added you on Pleek!! 😎";
-			}
-			else{
-				message = "@unknown added you on Pleek!! 😎";
-			}
+			/*
+			
+			if (userObject){
+				var message;
+
+				if (userObject.get("username")){
+					message = "@" + userObject.get("username") + " added you on Pleek!! 😎";
+				}
+				else{
+					message = "@unknown added you on Pleek!! 😎";
+				}
 
 			
 
-			Parse.Push.send({
-				where: pushQuery, // Set our Installation query
-				data: {
-					alert: message,
-					badge : "Increment",
-					sound : "default",
-					type : "newFriend"
-				}
-			});
+				Parse.Push.send({
+					where: pushQuery, // Set our Installation query
+					data: {
+						alert: message,
+						badge : "Increment",
+						sound : "default",
+						type : "newFriend"
+					}
+				});
+			}*/
+			
 
 		});
 
@@ -495,6 +577,7 @@ Parse.Cloud.define("addToAPublicPleek", function(request, response) {
 
 });
 
+/*
 Parse.Cloud.define("callMuteAll", function(request, response) {
 	Parse.Cloud.useMasterKey();
 	
@@ -887,7 +970,7 @@ Parse.Cloud.job("unmuteAll", function(request, status) {
 	}
 	
 
-});
+});*/
 
 Parse.Cloud.job("fixProdChannel", function(request, status) {
 	Parse.Cloud.useMasterKey();
@@ -1031,6 +1114,7 @@ Parse.Cloud.define("inviteFriendsParams", function(request, response) {
 
 });
 
+/*
 Parse.Cloud.beforeSave(Parse.User, function(request, response) {
 		     
 	var username = request.object.get("username");
@@ -1040,7 +1124,6 @@ Parse.Cloud.beforeSave(Parse.User, function(request, response) {
 	//si il n'y as pas de majuscule on ne fait rien
  	if (username == username.toLowerCase()) {
  	
- 		console.log("pas de maj dans le username ij");
  		response.success();	
  	
  	//si il y a une maj alors on set un newUsername sans maj
@@ -1090,10 +1173,12 @@ Parse.Cloud.beforeSave(Parse.User, function(request, response) {
     }
 	
 
-});
+});*/
+
 
 Parse.Cloud.afterSave(Parse.User, function(request, response) {
 	Parse.Cloud.useMasterKey();
+	
 	
 	if (request.object.get("usernameNew")) {
 		
@@ -1420,7 +1505,11 @@ Parse.Cloud.define("addToFirstUsePiki", function(request, response) {
 Parse.Cloud.define("confirmPhoneNumber", function(request, response) {
 
 	var randomNumber = Math.floor((Math.random() * 8999) + 1000);
-	randomNumber = 1988;
+
+	if (!isProd){
+		randomNumber = 1988;
+	}
+	
 
 	var result = []; 
 
