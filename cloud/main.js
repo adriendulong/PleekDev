@@ -13,7 +13,7 @@ var infosDev = {
 
 var infosProd = {
 	twillio_sid : "AC565e7be131da6f810b8d746874fb3774",
-	twilio_toker : "8d432341211ffaca933c13dd2e000eea",
+	twilio_token : "8d432341211ffaca933c13dd2e000eea",
 	accounts_id : {
 		pleekTeam_id : "1IJJAdzBYR",
 		remi_id : "SD7bSBaCI0",
@@ -23,7 +23,7 @@ var infosProd = {
 }
 
 //WE ARE IN PROD OR DEV ???
-var isProd = false;
+var isProd = true
 
 //Modify between dev and Prod
 var infosApp;
@@ -36,7 +36,7 @@ else{
 
 
 // Require and initialize the Twilio module with your credentials
-var client = require('twilio')(infosApp.twillio_sid, infosApp.twilio_token);
+var client = require('twilio')("AC565e7be131da6f810b8d746874fb3774", "8d432341211ffaca933c13dd2e000eea");
 var Image = require("parse-image");
 var friend = require('cloud/friend.js');
 var utils = require('cloud/utils.js');
@@ -87,8 +87,7 @@ Parse.Cloud.job("setUserInofsACL", function(request, status) {
   	var nbMinutesLimit = 14;
 
   	if (lengthJob > (nbMinutesLimit * 60 * 1000)){
-  		console.log("finish")
-  		return Parse.Promise.as();
+  		return "Finished"
   	}
   	else{
   		if (counter % 100 === 0) {
@@ -120,6 +119,7 @@ Parse.Cloud.job("setUserInofsACL", function(request, status) {
   });
 
 });
+
 
 ////////////////// SET PRIVATE ACL FOR PHONE NUMBERS //////////////////////////
 ///////////////////////////////// END ////////////////////////////////////////
@@ -193,16 +193,17 @@ Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
   Parse.Cloud.useMasterKey();
   var counter = 0;
   var nbSeries = 0;
-  var letter = request.params.letter;
+  //var letter = request.params.letter;
   
   //Go through all the users
   var query = new Parse.Query(Parse.User);
-  query.equalTo("migrationFriendsDone", false)
-  query.equalTo("isBigAccount", false)
+  query.equalTo("migrationFriendsDone", false);
+  query.equalTo("isBigAccount", false);
+  query.exists("usersFriend");
 
-  if (letter !== "0"){
+  /*if (letter !== "0"){
   	query.startsWith("username", letter);
-  }
+  }*/
   
   query.each(function(user) {
 
@@ -213,7 +214,8 @@ Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
 
   	if (lengthJob > (nbMinutesLimit * 60 * 1000)){
   		console.log("finish")
-  		return Parse.Promise.as();
+  		//status.success("Migration completed successfully in "+lengthJob+" for "+counter+" users");
+  		return "End Early";
   	}
   	else{
   		if (counter % 100 === 0) {
@@ -221,9 +223,8 @@ Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
     	}
     	counter += 1;
 
-  		console.log("still acting");
   		//Call the function the migrate all the friends of this user
-  		return friend.migrateFriends(user);
+  		return friend.migrateFriendsTwo(user);
   	}
 
 
@@ -233,11 +234,11 @@ Parse.Cloud.job("migrateFriendsUsers", function(request, status) {
 
   	var endDate = new Date();
   	var lengthJob = endDate - startDate;
-  	status.success("Migration completed successfully in "+lengthJob+" for letter : "+letter+" and "+counter+" users");
+  	status.success("Migration completed successfully in "+lengthJob+" for "+counter+" users");
 
   }, function(error) {
     // Set the job's error status
-    status.error("Uh oh, something went wrong. : "+error);
+    status.error("Uh oh, something went wrong. : "+error.message);
   });
 
 });
@@ -250,18 +251,19 @@ Parse.Cloud.define("countFriendsToMigrate", function(request, response) {
 	
 
 
-	var letter = request.params.letter;
+	//var letter = request.params.letter;
 
-	console.log("Letter : "+letter);
+	//console.log("Letter : "+letter);
 
 	var query = new Parse.Query(Parse.User);
   	query.equalTo("migrationFriendsDone", false)
   	query.equalTo("isBigAccount", false)
-  	query.startsWith("username", letter);
+  	query.exists("usersFriend");
+  	//query.startsWith("username", letter);
   	query.count().then(function(nbToMigrate){
-  		response.success("Still to migrate with letter "+letter+" : "+nbToMigrate);
+  		response.success("Still to migrate : "+nbToMigrate);
   	}, function(error){
-  		response.success("Problem counting");
+  		response.success("Problem counting "+error.message);
   	});
 	
 	
@@ -272,30 +274,56 @@ Parse.Cloud.job("setFriendshipScores", function(request, status){
 
 	Parse.Cloud.useMasterKey();
 	var startDate = new Date()
+	var count = 0
 
 	var friendshipScore = Parse.Object.extend("friendshipScore");
 	var queryfriendshipScore = new Parse.Query(friendshipScore);
 	
-	queryfriendshipScore.include("user")
+	queryfriendshipScore.include("user");
+	queryfriendshipScore.doesNotExist("migrationScoreDone");
 
 	//Iterate over all the friendhsipScores
 	queryfriendshipScore.each(function(friendshipScore){
 
-		var user = friendshipScore.get("user")
-		var friendId = friendshipScore.get("friendId")
+		
+		var testDate = new Date();
+  		var lengthJob = testDate - startDate;
+  		var nbMinutesLimit = 14;
 
-		var queryFriend = new Parse.Query(Parse.Object.extend("Friend"))
-		queryFriend.equalTo("user", user)
-		queryFriend.equalTo("friendId", friendId)
+  		if (lengthJob > (nbMinutesLimit * 60 * 1000)){
+  			//status.success("Migration completed successfully in "+lengthJob+" for "+counter+" users");
+  			return "End Early";
+  		}
 
-		//Get the Friend Object
-		return setOldScore(friendshipScore);
+
+    	if (friendshipScore.get("user")){
+
+    		if (friendshipScore.get("user").get("migrationFriendsDone")){
+    			//Get the Friend Object
+
+    			count = count + 1;
+				if (count % 100 === 0) {
+        			status.message(count + " friendships processed.");
+    			}
+
+				return setOldScore(friendshipScore);
+    		}
+    		else{
+    			return Parse.Promise.as();
+    		}
+    		
+    	}
+    	else{
+    		return Parse.Promise.as();
+    	}
+
+		
 
 	}).then(function(){
 
 		var endDate = new Date();
   		var lengthJob = endDate - startDate;
-		status.success("Has Set all the friendships score in : "+ lengthJob)
+		status.success("Has Set "+count+" friendships score in : "+ lengthJob)
 
 	}, function(error){
 		status.error("Error : "+ error);
@@ -319,9 +347,22 @@ function setOldScore(friendshipScore){
 
 	queryFriend.first(function(friend){
 
-		friend.set("score", friendshipScore.get("score"))
+		if (friend){
+			var promises = []
 
-		return friend.save();
+			friend.set("score", friendshipScore.get("score"));
+			promises.push(friend.save());
+
+			friendshipScore.set("migrationScoreDone", true);
+			promises.push(friendshipScore.save());
+
+			return Parse.Promise.when(promises);
+		}
+		else{
+			return Parse.Promise.as();
+		}
+
+		
 
 	}).then(function(){
 
@@ -350,6 +391,7 @@ Parse.Cloud.afterSave("Friend", function(request) {
 
 
 		var queryFriend = new Parse.Query(Parse.User);
+		queryFriend.select("username", "nbRecipients");
 		queryFriend.containedIn("objectId", [request.object.get("friend").id, request.object.get("user").id])
 		queryFriend.find().then(function(users){
 			var friendObject;
@@ -375,16 +417,16 @@ Parse.Cloud.afterSave("Friend", function(request) {
 			pushQuery.notEqualTo("notificationsEnabled", false);
 
 
-			/*
 			
+
 			if (userObject){
 				var message;
 
 				if (userObject.get("username")){
-					message = "@" + userObject.get("username") + " added you on Pleek!! 😎";
+					message = "@" + userObject.get("username") + " follow you on Pleek!! 😎";
 				}
 				else{
-					message = "@unknown added you on Pleek!! 😎";
+					message = "@unknown follow you on Pleek!! 😎";
 				}
 
 			
@@ -398,7 +440,7 @@ Parse.Cloud.afterSave("Friend", function(request) {
 						type : "newFriend"
 					}
 				});
-			}*/
+			}
 			
 
 		});
@@ -1179,41 +1221,6 @@ Parse.Cloud.beforeSave(Parse.User, function(request, response) {
 Parse.Cloud.afterSave(Parse.User, function(request, response) {
 	Parse.Cloud.useMasterKey();
 	
-	
-	if (request.object.get("usernameNew")) {
-		
-		console.log("il y a un usernameNew");
-		
-		if ( request.object.get("usernameNew") != "") {
-		
-		console.log("il n'est pas vide, on enregistre le new username et on vire usernameNew");
-		
-			var newUsername = request.object.get("usernameNew");
-			request.object.set("username", newUsername);
-			request.object.set("usernameNew", "");
-			request.object.set("password", newUsername);
-			
-			request.object.save(null, {
-			  success: function(pikiSaved) {
-			  	
-			    console.log("on a bien save");
-			   
-			   
-			    
-			  },
-			  error: function(result, error) {
-			    //on a pas pu save le piki
-			    response.error();
-			  }
-			});
-
-			
-		} else {
-		}
-		
-	}else {
-	}
-	
 	if (!request.object.existed()) {
 	
 			var msg = "@" + request.object.get("username") + " just signup on Pleek!";
@@ -1988,11 +1995,18 @@ Parse.Cloud.afterDelete("React", function(request) {
 		pleek.increment("nbReaction", -1);
 
 		promises.push(pleek.save());
-		promises.push(react.createLastReacts(pleek, false));
+
+		//Create the 3 thumbnails if needed
+		if (react.isReactInThumbnails(pleek, request.object)){
+			promises.push(react.createLastReacts(pleek, false));
+		}
+
+		
 
 		return Parse.Promise.when(promises);
 
 	}).then(function(){
+		console.log("*** SUCCESS  : React has been deleted ***");
 
 	}, function(error){
 		console.log("*** ERROR after delete React : "+error+" ***");
@@ -2017,8 +2031,29 @@ Parse.Cloud.define("reportOrRemoveReact", function(request, response) {
 		}
 		//Else we just report the react
 		else{
+			var promises = [];
 			reactObject.addUnique("reported",request.user.id);
-			return reactObject.save();
+			promises.push(reactObject.save())
+
+			//If more than 3 reports, warn on slack
+			if (reactObject.get("reported").length > 2){
+				var urlContent;
+
+				if (reactObject.get("photo")){
+					urlContent = reactObject.get("photo").url();
+				}
+				else{
+					urlContent = reactObject.get("video").url();
+				}
+
+				var msg = "This react has been reported "+reactObject.get("reported").length+" times. \n React Id : "+reactObject.id+"\n Pleek Id : "+reactObject.get("Piki").id+"\n React Image URL : "+urlContent;
+				var channelName = "#reported-reacts";
+				var usernameName = "React Reported";
+
+				promises.push(slack.send({text: msg, channel: channelName,  username : usernameName}));
+			}
+
+			return Parse.Promise.when(promises);
 		}
 
 	}).then(function(){
@@ -2041,49 +2076,39 @@ Parse.Cloud.define("reportPiki", function(request, response) {
 		
 	var Piki = Parse.Object.extend("Piki");
 	var queryPiki = new Parse.Query(Piki);
-	
-	//on va recup les pikis posté par le friend
-	queryPiki.equalTo("objectId",pikiId);
-	
-	queryPiki.first({
-	  success: function(pikiObject) {
-	  
-	  	if (pikiObject) {
-				
-				
-			   pikiObject.addUnique("reported",request.user.id);
-			    
-			   pikiObject.save(null, {
-				  success: function(pikiSaved) {			  
-				  
-				  
-					  response.success("piki saved with one more report count");
-				 
-				 
-				    
-				  },
-				  error: function() {
-				  
-				    // Execute any logic that should take place if the save fails.
-				    // error is a Parse.Error with an error code and message.
-				    response.error("fail to save the piki with one more report count")
-				    
-				  }
-				}); 
-		
+
+	queryPiki.get(pikiId).then(function(pleek){
+
+		var promises = [];
+
+		pleek.addUnique("reported",request.user.id);
+		promises.push(pleek.save())
+
+		if (pleek.get("reported").length > 2){
+			var urlContent;
+
+			if (pleek.get("photo")){
+				urlContent = pleek.get("photo").url();
+			}
+			else{
+				urlContent = pleek.get("video").url();
+			}
+
+			var msg = "This Pleek has been reported "+pleek.get("reported").length+" times. \n Pleek Id : "+pleek.id+"\n Pleek Image URL : "+urlContent;
+			var channelName = "#reported-pleek";
+			var usernameName = "Pleek Reported";
+
+			promises.push(slack.send({text: msg, channel: channelName,  username : usernameName}));
 		}
-		
-		else {
-			response.success("no piki find :/")
-		}
-		
-	    
-	    
-	  },
-	  error: function() {
-	    console.log("Error: finding the piki");
-	    response.error("can't find the piki");
-	  }
+
+		return Parse.Promise.when(promises);
+
+	}).then(function(){
+
+		response.success("Pleek reported");
+
+	}, function(error){
+		reponse.error(error);
 	});
 
 });
@@ -2112,14 +2137,18 @@ Parse.Cloud.define("addFriendV2", function(request, response){
 Parse.Cloud.define("addFriend", function(request, response) {	
 	Parse.Cloud.useMasterKey();	
 
-	response.error("Please update the app");
+	//response.error("Please update the app");
 		
 	var userObject = request.user;
+	var friendId = request.params.friendId;
 		
 	var User = Parse.Object.extend("User");
 	var queryUser = new Parse.Query(User);
-	
-	//on va recup l'object user du friends
+
+	//Add user the new way
+	friend.addFriend(userObject, friendId).then(function(friendObject){
+
+		//on va recup l'object user du friends
 	queryUser.equalTo("objectId",request.params.friendId);
 	queryUser.first({
 	  success: function(friendsObject) {
@@ -2260,6 +2289,14 @@ Parse.Cloud.define("addFriend", function(request, response) {
 	    //console.log("Error: finding the friends");
 	  }
 	});
+
+
+	}, function(error){
+		response.error(error);
+	})
+
+	
+
 	
 	
 
@@ -2329,7 +2366,7 @@ Parse.Cloud.define("removeFriendV2", function(request, response){
 
 
 Parse.Cloud.define("removeFriend", function(request, response) {
-	response.error("Please update the app");
+	//response.error("Please update the app");
 
 	Parse.Cloud.useMasterKey();	
 		
@@ -2660,6 +2697,63 @@ Parse.Cloud.define("unMuteFriend", function(request, response) {
 
 
 
+
+});
+
+
+
+/*
+*
+* LIKE
+*
+*/
+
+Parse.Cloud.afterSave("Like", function(request) {
+	Parse.Cloud.useMasterKey();
+
+	//If new friend object
+	if (!request.object.existed()){
+
+
+		var queryReact = new Parse.Query(Parse.Object.extend("React"));
+		queryReact.get(request.object.get("react").id).then(function(react){
+
+			react.increment("nbLikes");
+			react.save();
+
+		}, function(error){
+
+			console.log("*** ERROR : Error incrementing the nb likes of React "+request.object.get("react").id+" with error : "+error);
+
+		});
+
+
+	}
+
+
+});
+
+
+Parse.Cloud.afterDelete("Like", function(request) {
+	Parse.Cloud.useMasterKey();
+  
+	var queryReact = new Parse.Query(Parse.Object.extend("React"));
+	queryReact.get(request.object.get("react").id).then(function(react){
+
+		if (react.get("nbLikes")){
+			if (react.get("nbLikes") > 0){
+				react.increment("nbLikes", -1);
+				react.save();
+			}
+		}
+		
+		
+
+	}, function(error){
+
+		console.log("*** ERROR : Error incrementing the nb likes of React "+request.object.get("react").id+" with error : "+error);
+
+	});
 
 });
 

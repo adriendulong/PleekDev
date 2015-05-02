@@ -1,14 +1,21 @@
 {
-    "applications": {
-        "PikiV3": {
-            "applicationId": "BA7FMG5LmMRx0RIPw3XdrOkR7FTnnSe4SIMRrnRG", 
-            "masterKey": "AKQhW3cNH3y4nwaKovCNhAcUeW6Z4rasX3OdiIkR"
-        }, 
-        "_default": {
-            "link": "PikiV3"
-        }
-    }, 
-    "global": {
-        "parseVersion": "1.4.0"
+  "global": {
+    "parseVersion": "1.4.0"
+  },
+  "applications": {
+    "PikiV3": {
+      "applicationId": "BA7FMG5LmMRx0RIPw3XdrOkR7FTnnSe4SIMRrnRG",
+      "masterKey": "AKQhW3cNH3y4nwaKovCNhAcUeW6Z4rasX3OdiIkR"
+    },
+    "Pleek": {
+      "applicationId": "Yw204Svyg7sXIwvWdAZ9EmOOglqxpqk71ICpHDY9",
+      "masterKey": "Xv3f2CGnSy1utRdDJJk4TtueBvEKR5W9q3oU73bf"
+    },
+    "_default": {
+      "link": "PikiV3"
+    },
+    "production": {
+      "link": "Pleek"
     }
+  }
 }

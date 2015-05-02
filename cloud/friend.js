@@ -178,7 +178,7 @@ exports.migrateFriends = function(user) {
   var mainUser = user
   var friendsObjects = [];
 
-  var queryFriend = new Parse.Query(Parse.User);
+  
 
   if (!user.get("usersFriend")){
       return Parse.Promise.as();
@@ -190,10 +190,106 @@ exports.migrateFriends = function(user) {
   else if (user.get("migrationFriendsDone")){
     return Parse.Promise.as();
   }
+
+
+  var friendsAll = user.get("usersFriend");
+  var friends = friendsAll
+
+  if (user.get("usersIMuted")){
+    friends = _.difference(friendsAll, user.get("usersIMuted"));
+  }
+
+
+  var Friend = Parse.Object.extend("Friend");
+  /*var promises = [];
+
+  _.each(friends, function(friendId){
+    var friendUser = new Parse.User();
+    friendUser.id = friendId;
+
+    var newFriend = new Friend();
+    newFriend.set("friend", friendUser);
+    newFriend.set("friendId", friendId);
+    newFriend.set("user", mainUser);
+    newFriend.set("score", 0);
+
+    var ACLFriend = new Parse.ACL();
+    ACLFriend.setPublicReadAccess(true);
+    ACLFriend.setWriteAccess(mainUser, true);
+    newFriend.setACL(ACLFriend);
+
+    friendsObjects.push(newFriend);
+
+    promises.push(newFriend.save());
+  })
+
+  return Parse.Promise.when(promises)*/
+
+  var promiseSerie = Parse.Promise.as();
+  _.each(friends, function(friendId){
+
+    var friendUser = new Parse.User();
+    friendUser.id = friendId;
+
+    var newFriend = new Friend();
+    newFriend.set("friend", friendUser);
+    newFriend.set("friendId", friendId);
+    newFriend.set("user", mainUser);
+    newFriend.set("score", 0);
+
+    var ACLFriend = new Parse.ACL();
+    ACLFriend.setPublicReadAccess(true);
+    ACLFriend.setWriteAccess(mainUser, true);
+    newFriend.setACL(ACLFriend);
+
+    friendsObjects.push(newFriend);
+
+
+    promiseSerie = promiseSerie.then(function() {
+      // Return a promise that will be resolved when the delete is finished.
+      return newFriend.save();
+    });
+  });
+
+  return promiseSerie.then(function(){
+    mainUser.set("nbFriends", friendsObjects.length);
+    mainUser.set("lastFriendsModification", new Date());
+    mainUser.set("migrationFriendsDone", true);
+
+    return mainUser.save();
+    //promises.push(mainUser.save());
+  }).then(function(){
+      var endDate = new Date();
+      var lengthJob = endDate - startDate;
+      promise.resolve("Migration completed successfully in "+lengthJob+".");
+
+  }, function(error) {
+    // Set the job's error status
+    promise.reject("Uh oh, something went wrong." + error.message);
+  });
+
+  return promise;
+
+
+/*
+
+  if (!user.get("usersFriend")){
+      return Parse.Promise.as();
+  }
+  else if (user.get("usersFriend").length > 50){
+    //Don't transform the friends for the prople who has more than 300 friends : they are spammer or stars
+    return Parse.Promise.as();
+  }
+  else if (user.get("migrationFriendsDone")){
+    return Parse.Promise.as();
+  }
   else{
     queryFriend.containedIn("objectId", user.get("usersFriend"));
   }
 
+
+  var queryFriend = new Parse.Query(Parse.User);
+  queryFriend.select("username");
   queryFriend.find().then(function(friends){
 
     var Friend = Parse.Object.extend("Friend");
@@ -217,6 +313,32 @@ exports.migrateFriends = function(user) {
     })
 
 
+    var promise = Parse.Promise.as();
+    _.each(friends, function(friend){
+      // For each item, extend the promise with a function to delete it.
+      console.log("Friend username : "+friend.get("username"))
+      var newFriend = new Friend();
+      newFriend.set("friend", friend);
+      newFriend.set("friendId", friend.id);
+      newFriend.set("user", mainUser);
+      newFriend.set("score", 0);
+
+      var ACLFriend = new Parse.ACL();
+      ACLFriend.setPublicReadAccess(true);
+      ACLFriend.setWriteAccess(mainUser, true);
+      newFriend.setACL(ACLFriend);
+
+      friendsObjects.push(newFriend);
+
+
+      promise = promise.then(function() {
+        // Return a promise that will be resolved when the delete is finished.
+        return newFriend.save();
+      });
+    });
+    return promise;
+
+
     mainUser.set("nbFriends", friendsObjects.length);
     mainUser.set("lastFriendsModification", new Date());
     mainUser.set("migrationFriendsDone", true);
@@ -226,7 +348,14 @@ exports.migrateFriends = function(user) {
     return Parse.Promise.when(promises);
     //return Parse.Object.saveAll(friendsObjects);
 
-    
+  }).then(function(){
+
+    mainUser.set("nbFriends", friendsObjects.length);
+    mainUser.set("lastFriendsModification", new Date());
+    mainUser.set("migrationFriendsDone", true);
+    return mainUser.save();
+
+
   }).then(function(){
     var endDate = new Date();
     var lengthJob = endDate - startDate;
@@ -239,8 +368,158 @@ exports.migrateFriends = function(user) {
   });
 
 
+  return promise;*/
+
+
+}
+
+
+exports.migrateFriendsTwo = function(user) {
+  
+  var promise = new Parse.Promise();
+  var startDate = new Date()
+  Parse.Cloud.useMasterKey();
+  var counter = 0;
+  
+  var mainUser = user
+  var friendsObjects = [];
+
+  
+
+  if (!user.get("usersFriend")){
+      return Parse.Promise.as();
+  }
+  else if (user.get("usersFriend").length > 300){
+    //Don't transform the friends for the prople who has more than 300 friends : they are spammer or stars
+    return Parse.Promise.as();
+  }
+  else if (user.get("migrationFriendsDone")){
+    return Parse.Promise.as();
+  }
+
+  var friendsAll = user.get("usersFriend");
+  var friends = friendsAll
+
+  if (user.get("usersIMuted")){
+    friends = _.difference(friendsAll, user.get("usersIMuted"));
+  }
+
+
+  var Friend = Parse.Object.extend("Friend");
+  var promises = [];
+
+  _.each(friends, function(friendId){
+    var friendUser = new Parse.User();
+    friendUser.id = friendId;
+
+    var newFriend = new Friend();
+    newFriend.set("friend", friendUser);
+    newFriend.set("friendId", friendId);
+    newFriend.set("user", mainUser);
+    newFriend.set("score", 0);
+
+    var ACLFriend = new Parse.ACL();
+    ACLFriend.setPublicReadAccess(true);
+    ACLFriend.setWriteAccess(mainUser, true);
+    newFriend.setACL(ACLFriend);
+
+    friendsObjects.push(newFriend);
+
+    promises.push(newFriend.save());
+  })
+
+  mainUser.set("nbFriends", friendsObjects.length);
+  mainUser.set("lastFriendsModification", new Date());
+  mainUser.set("migrationFriendsDone", true);
+  promises.push(mainUser.save());
+
+
+  return Parse.Promise.when(promises).then(function(){
+      var endDate = new Date();
+      var lengthJob = endDate - startDate;
+      promise.resolve("Migration completed successfully in "+lengthJob+".");
+
+  }, function(error) {
+    // Set the job's error status
+    promise.reject("Uh oh, something went wrong." + error.message);
+  });
+
   return promise;
 
+}
+
+
+exports.migrateFriendsThree = function(user) {
+  
+  var promise = new Parse.Promise();
+  var startDate = new Date()
+  Parse.Cloud.useMasterKey();
+  var counter = 0;
+  
+  var mainUser = user
+  var friendsObjects = [];
+
+  
+
+  if (!user.get("usersFriend")){
+      return Parse.Promise.as();
+  }
+  else if (user.get("usersFriend").length > 50){
+    //Don't transform the friends for the prople who has more than 300 friends : they are spammer or stars
+    return Parse.Promise.as();
+  }
+  else if (user.get("migrationFriendsDone")){
+    return Parse.Promise.as();
+  }
+
+  var friendsAll = user.get("usersFriend");
+  var friends = friendsAll
+
+  if (user.get("usersIMuted")){
+    friends = _.difference(friendsAll, user.get("usersIMuted"));
+  }
+
+
+  var Friend = Parse.Object.extend("Friend");
+  var promises = [];
+
+  _.each(friends, function(friendId){
+    var friendUser = new Parse.User();
+    friendUser.id = friendId;
+
+    var newFriend = new Friend();
+    newFriend.set("friend", friendUser);
+    newFriend.set("friendId", friendId);
+    newFriend.set("user", mainUser);
+    newFriend.set("score", 0);
+
+    var ACLFriend = new Parse.ACL();
+    ACLFriend.setPublicReadAccess(true);
+    ACLFriend.setWriteAccess(mainUser, true);
+    newFriend.setACL(ACLFriend);
+
+    friendsObjects.push(newFriend);
+
+  })
+
+  Parse.Object.saveAll(friendsObjects).then(function(){
+    
+    mainUser.set("nbFriends", friendsObjects.length);
+    mainUser.set("lastFriendsModification", new Date());
+    mainUser.set("migrationFriendsDone", true);
+    return mainUser.save();
+
+  }).then(function(){
+      var endDate = new Date();
+      var lengthJob = endDate - startDate;
+      promise.resolve("Migration completed successfully in "+lengthJob+".");
+
+  }, function(error) {
+    // Set the job's error status
+    promise.reject("Uh oh, something went wrong." + error.message);
+  });
+
+  return promise;
 
 }
 

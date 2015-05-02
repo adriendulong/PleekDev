@@ -269,13 +269,22 @@ exports.createLastReacts = function(pleek, needIncrement){
 
 	queryReacts.find().then(function(reacts){
 
+		pleek.unset("react1");
+		pleek.unset("react2");
+		pleek.unset("react3");
+		pleek.unset("react1Id");
+		pleek.unset("react2Id");
+		pleek.unset("react3Id");
+
 		if(reacts){
 
 			var positionReact = 1
 			_.each(reacts, function(react){
 
 				var nameField = "react"+positionReact;
+				var nameFieldId = "react"+positionReact+"Id";
 				pleek.set(nameField, react.get("smallPhoto"));
+				pleek.set(nameFieldId, react.id);
 				positionReact++;
 
 			});
@@ -297,6 +306,31 @@ exports.createLastReacts = function(pleek, needIncrement){
 
 
 	return promise;
+
+}
+
+//Does the react is already in the react preview of the pleek
+exports.isReactInThumbnails = function(pleek, react){
+
+	if (pleek.get("react1Id")){
+		if (pleek.get("react1Id") == react.id){
+			return true;
+		}
+	}
+	else if(pleek.get("react2Id")){
+		if (pleek.get("react2Id") == react.id){
+			return true;
+		}
+
+	}
+	else if(pleek.get("react3Id")){
+		if (pleek.get("react3Id") == react.id){
+			return true;
+		}
+
+	}
+
+	return false;
 
 }
 
